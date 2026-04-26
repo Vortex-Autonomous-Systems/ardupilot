@@ -172,7 +172,7 @@ const AP_Param::Info Rover::var_info[] = {
 
     // @Param: MODE1
     // @DisplayName: Mode1
-    // @Values: 0:Manual,1:Acro,3:Steering,4:Hold,5:Loiter,6:Follow,7:Simple,8:Dock,9:Circle,10:Auto,11:RTL,12:SmartRTL,15:Guided
+    // @Values: 0:Manual,1:Acro,3:Steering,4:Hold,5:Loiter,6:Follow,7:Simple,8:Dock,9:Circle,10:Auto,11:RTL,12:SmartRTL,15:Guided,30:Offboard
     // @User: Standard
     // @Description: Driving mode for switch position 1 (910 to 1230 and above 2049)
     GSCALAR(mode1,           "MODE1",         (int8_t)Mode::Number::MANUAL),
@@ -701,6 +701,54 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("FS_GCS_TIMEOUT", 56, ParametersG2, fs_gcs_timeout, 5),
 
+    // @Param: OFFB_ENABLE
+    // @DisplayName: Offboard mode enable
+    // @Description: Enables DDS-first OFFBOARD mode support for Rover.
+    // @Values: 0:Disabled,1:Enabled
+    // @User: Advanced
+    AP_GROUPINFO("OFFB_ENABLE", 58, ParametersG2, offboard_enable, 1),
+
+    // @Param: OFFB_HB_TO
+    // @DisplayName: Offboard heartbeat timeout
+    // @Description: Maximum age of DDS offboard heartbeat before OFFBOARD triggers its loss action.
+    // @Units: ms
+    // @Range: 100 5000
+    // @Increment: 10
+    // @User: Advanced
+    AP_GROUPINFO("OFFB_HB_TO", 59, ParametersG2, offboard_heartbeat_timeout, 1000),
+
+    // @Param: OFFB_CMD_TO
+    // @DisplayName: Offboard command timeout
+    // @Description: Maximum age of DDS offboard motion commands before OFFBOARD triggers its stale command action.
+    // @Units: ms
+    // @Range: 100 5000
+    // @Increment: 10
+    // @User: Advanced
+    AP_GROUPINFO("OFFB_CMD_TO", 60, ParametersG2, offboard_command_timeout, 1000),
+
+    // @Param: OFFB_LOSS_ACT
+    // @DisplayName: Offboard heartbeat loss action
+    // @Description: Action taken when DDS offboard heartbeat is lost while in OFFBOARD mode.
+    // @Values: 0:Stop,1:Hold
+    // @User: Advanced
+    AP_GROUPINFO("OFFB_LOSS_ACT", 61, ParametersG2, offboard_loss_action, 0),
+
+    // @Param: OFFB_STALE_ACT
+    // @DisplayName: Offboard stale command action
+    // @Description: Action taken when DDS offboard commands go stale while heartbeat is still present in OFFBOARD mode.
+    // @Values: 0:Stop,1:Hold
+    // @User: Advanced
+    AP_GROUPINFO("OFFB_STALE_ACT", 62, ParametersG2, offboard_stale_action, 0),
+
+    // @Param: OFFB_LOC_TO
+    // @DisplayName: Offboard localization timeout
+    // @Description: Maximum age of localization data before OFFBOARD falls back from position-based submodes.
+    // @Units: ms
+    // @Range: 100 5000
+    // @Increment: 10
+    // @User: Advanced
+    AP_GROUPINFO("OFFB_LOC_TO", 63, ParametersG2, offboard_loc_timeout, 2000),
+
     // @Group: CIRC
     // @Path: mode_circle.cpp
     AP_SUBGROUPINFO(mode_circle, "CIRC", 57, ParametersG2, ModeCircle),
@@ -714,7 +762,7 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
 // @Param: CH7_OPTION
 // @DisplayName: Channel 7 option
 // @Description: What to do use channel 7 for
-// @Values: 0:Nothing,1:SaveWaypoint,2:LearnCruiseSpeed,3:ArmDisarm,4:Manual,5:Acro,6:Steering,7:Hold,8:Auto,9:RTL,10:SmartRTL,11:Guided,12:Loiter
+// @Values: 0:Nothing,1:SaveWaypoint,2:LearnCruiseSpeed,3:ArmDisarm,4:Manual,5:Acro,6:Steering,7:Hold,8:Auto,9:RTL,10:SmartRTL,11:Guided,12:Loiter,30:Offboard
 // @User: Standard
 
 // @Param: AUX_CH

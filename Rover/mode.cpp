@@ -554,6 +554,9 @@ Mode *Rover::mode_from_mode_num(const enum Mode::Number num)
     case Mode::Number::GUIDED:
         ret = &mode_guided;
         break;
+    case Mode::Number::OFFBOARD:
+        ret = &mode_offboard;
+        break;
     case Mode::Number::INITIALISING:
         ret = &mode_initializing;
         break;

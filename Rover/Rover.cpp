@@ -404,6 +404,7 @@ void Rover::update_logging1(void)
 
     if (should_log(MASK_LOG_NTUN)) {
         Log_Write_Nav_Tuning();
+        Log_Write_Offboard();
         if (g2.pos_control.is_active()) {
             g2.pos_control.write_log();
             logger.Write_PID(LOG_PIDN_MSG, g2.pos_control.get_vel_pid().get_pid_info_x());

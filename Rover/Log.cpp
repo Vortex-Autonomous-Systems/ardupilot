@@ -231,6 +231,58 @@ void Rover::Log_Write_Throttle()
     logger.WriteBlock(&pkt, sizeof(pkt));
 }
 
+struct PACKED log_Offboard {
+    LOG_PACKET_HEADER;
+    uint64_t time_us;
+    uint8_t state;
+    uint8_t submode;
+    uint32_t hb_age_ms;
+    uint32_t cmd_age_ms;
+    float pos_err;
+    float hdg_err;
+    float vel_err;
+    float dist_rem;
+    uint8_t paused;
+    uint8_t loc_ok;
+    float spd_lim;
+};
+
+void Rover::Log_Write_Offboard()
+{
+    if (control_mode != &mode_offboard) {
+        return;
+    }
+
+#if AP_EXTERNAL_CONTROL_ENABLED
+    AP_ExternalControl::OffboardStatus status {};
+    AP_ExternalControl::OffboardTrackingStatus tracking {};
+
+    mode_offboard.get_status(status);
+    mode_offboard.get_tracking_status(tracking);
+
+    AP_ExternalControl::OffboardLocalizationStatus loc_status {};
+    mode_offboard.get_localization_status(loc_status);
+
+    struct log_Offboard pkt = {
+        LOG_PACKET_HEADER_INIT(LOG_OFFBOARD_MSG),
+        time_us         : AP_HAL::micros64(),
+        state           : status.state,
+        submode         : status.submode,
+        hb_age_ms       : status.heartbeat_age_ms,
+        cmd_age_ms      : status.command_age_ms,
+        pos_err         : tracking.position_error,
+        hdg_err         : tracking.heading_error,
+        vel_err         : tracking.velocity_error,
+        dist_rem        : tracking.distance_remaining,
+        paused          : mode_offboard.is_paused() ? (uint8_t)1 : (uint8_t)0,
+        loc_ok          : loc_status.source_valid ? (uint8_t)1 : (uint8_t)0,
+        spd_lim         : mode_offboard.get_safety_speed_limit(),
+    };
+
+    logger.WriteBlock(&pkt, sizeof(pkt));
+#endif
+}
+
 void Rover::Log_Write_RC(void)
 {
     logger.Write_RCIN();
@@ -306,6 +358,24 @@ const LogStructure Rover::log_structure[] = {
     
     { LOG_GUIDEDTARGET_MSG, sizeof(log_GuidedTarget),
       "GUIP",  "QBffffff",    "TimeUS,Type,pX,pY,pZ,vX,vY,vZ", "s-mmmnnn", "F-000000" },
+
+// @LoggerMessage: OFFB
+// @Description: DDS Offboard mode state and tracking diagnostics
+// @Field: TimeUS: Time since system startup
+// @Field: St: Offboard state machine state
+// @Field: SM: Active submode
+// @Field: HBA: Heartbeat age in milliseconds
+// @Field: CdA: Command age in milliseconds
+// @Field: PE: Position crosstrack error
+// @Field: HE: Heading error
+// @Field: VE: Velocity error
+// @Field: DR: Distance remaining to target
+// @Field: Ps: Paused flag
+// @Field: Lk: Localization healthy flag
+// @Field: SL: Safety speed limit from companion
+
+    { LOG_OFFBOARD_MSG, sizeof(log_Offboard),
+      "OFFB", "QBBIIffffBBf", "TimeUS,St,SM,HBA,CdA,PE,HE,VE,DR,Ps,Lk,SL", "s--ssmmmmn-n", "F--0000000-0" },
 };
 
 void Rover::log_init(void)
@@ -322,6 +392,7 @@ void Rover::Log_Write_GuidedTarget(uint8_t target_type, const Vector3f& pos_targ
 void Rover::Log_Write_Nav_Tuning() {}
 void Rover::Log_Write_Sail() {}
 void Rover::Log_Write_Throttle() {}
+void Rover::Log_Write_Offboard() {}
 void Rover::Log_Write_RC(void) {}
 void Rover::Log_Write_Steering() {}
 void Rover::Log_Write_Vehicle_Startup_Messages() {}

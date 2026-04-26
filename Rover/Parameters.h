@@ -443,6 +443,14 @@ public:
     // FS GCS timeout trigger time
     AP_Float fs_gcs_timeout;
 
+    // DDS offboard mode parameters
+    AP_Int8 offboard_enable;
+    AP_Int16 offboard_heartbeat_timeout;
+    AP_Int16 offboard_command_timeout;
+    AP_Int8 offboard_loss_action;
+    AP_Int8 offboard_stale_action;
+    AP_Int16 offboard_loc_timeout;
+
     class ModeCircle mode_circle;
 };
 

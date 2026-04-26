@@ -28,6 +28,7 @@ public:
         SMART_RTL    = 12,
         GUIDED       = 15,
         INITIALISING = 16,
+        OFFBOARD     = 30,
     };
 
     // Constructor
@@ -64,6 +65,9 @@ public:
 
     // return if external control is allowed in this mode (Guided or Guided-within-Auto)
     virtual bool in_guided_mode() const { return false; }
+
+    // return if DDS offboard control is active in this mode
+    virtual bool in_offboard_mode() const { return false; }
 
     // returns true if vehicle can be armed or disarmed from the transmitter in this mode
     virtual bool allows_arming_from_transmitter() { return !is_autopilot_mode(); }
@@ -303,6 +307,7 @@ protected:
         Stop,              // stop the vehicle as quickly as possible
         NavScriptTime,     // accept targets from lua scripts while NAV_SCRIPT_TIME commands are executing
         Circle,            // circle a given location
+        Offboard,          // handover control to DDS offboard companion from within auto mode
     } _submode;
 
 private:
@@ -310,6 +315,7 @@ private:
     bool check_trigger(void);
     bool start_loiter();
     void start_guided(const Location& target_loc);
+    bool start_offboard();
     void start_stop();
     void send_guided_position_target();
 
@@ -589,6 +595,150 @@ protected:
         uint32_t start_time_ms; // system time in milliseconds that control was handed to the external computer
         Location start_loc; // starting location for checking horiz_max limit
     } limit;
+};
+
+class ModeOffboard : public Mode
+{
+    friend class ModeAuto;
+public:
+#if AP_EXTERNAL_CONTROL_ENABLED
+    friend class AP_ExternalControl_Rover;
+#endif
+
+    static constexpr uint8_t OFFBOARD_PATH_MAX = 16;
+
+    enum class SubMode : uint8_t {
+        Hold = 0,
+        Stop = 1,
+        VelocityTurnRate = 2,
+        GlobalPosition = 3,
+        Path = 4,
+        Trajectory = 5,
+        Dock = 6,
+    };
+
+    enum class State : uint8_t {
+        Disabled = 0,
+        WaitingForHeartbeat = 1,
+        Active = 2,
+        CommandStale = 3,
+        HeartbeatLost = 4,
+        LocalizationInvalid = 5,
+    };
+
+    enum class FailsafeAction : uint8_t {
+        Stop = 0,
+        Hold = 1,
+    };
+
+    Number mode_number() const override { return Number::OFFBOARD; }
+    const char *name4() const override { return "OFFB"; }
+
+    void update() override;
+
+    bool is_autopilot_mode() const override { return true; }
+    bool in_guided_mode() const override { return false; }
+    bool in_offboard_mode() const override { return true; }
+
+    float wp_bearing() const override;
+    float nav_bearing() const override;
+    float crosstrack_error() const override;
+    float get_desired_lat_accel() const override;
+    float get_distance_to_destination() const override;
+    bool get_desired_location(Location& destination) const override WARN_IF_UNUSED;
+    bool reached_destination() const override;
+    bool set_desired_speed(float speed) override;
+
+    bool set_desired_location(const Location &destination, Location next_destination = Location()) override WARN_IF_UNUSED;
+    void set_desired_turn_rate_and_speed(float turn_rate_cds, float target_speed);
+    void set_heartbeat();
+    void set_stop();
+    void set_hold();
+    void record_command_result(uint32_t cmd_id, bool accepted, uint8_t reject_reason);
+    bool set_path(uint32_t path_id, float speed, const Location *points, uint8_t num_points);
+    bool set_trajectory(uint32_t traj_id, float speed, const Location *points, const float *speeds, uint8_t num_points);
+
+    // Phase 5: mission pause/resume/abort
+    void pause();
+    void resume();
+    void abort_task();
+    bool is_paused() const { return _paused; }
+
+    // Phase 6: dynamic safety constraints
+    struct SafetyConstraints {
+        float max_speed;       // companion-imposed speed limit (m/s), 0 = no limit
+        float min_distance;    // virtual bumper distance (m), 0 = disabled
+        uint32_t timestamp_ms; // when constraints were last set
+        bool valid() const;
+    };
+    void set_safety_constraints(float max_speed, float min_distance);
+    float get_constrained_speed(float desired_speed) const;
+    float get_safety_speed_limit() const;
+
+    // Phase 7: docking submode
+    bool start_dock();
+
+    bool enabled() const;
+#if AP_EXTERNAL_CONTROL_ENABLED
+    bool get_status(AP_ExternalControl::OffboardStatus &status) const;
+    bool get_command_result(AP_ExternalControl::OffboardCommandResult &result) const;
+    bool get_tracking_status(AP_ExternalControl::OffboardTrackingStatus &tracking) const;
+    bool get_localization_status(AP_ExternalControl::OffboardLocalizationStatus &loc_status) const;
+#endif
+
+protected:
+    bool _enter() override;
+    void _exit() override;
+
+private:
+    bool heartbeat_fresh(uint32_t now_ms) const;
+    bool command_fresh(uint32_t now_ms) const;
+    void update_state(uint32_t now_ms);
+    void run_velocity_turn_rate();
+    void run_global_position();
+    void run_path();
+    void run_dock();
+    void apply_failsafe();
+    bool localization_healthy() const;
+    bool submode_needs_localization() const;
+    uint32_t heartbeat_timeout_ms() const;
+    uint32_t command_timeout_ms() const;
+    FailsafeAction failsafe_action() const;
+
+    SubMode _submode = SubMode::Hold;
+    State _state = State::Disabled;
+    uint32_t _last_heartbeat_ms = 0;
+    uint32_t _last_command_ms = 0;
+    bool _have_target = false;
+    bool _reached_destination = false;
+    bool _sent_heartbeat_lost_warning = false;
+    bool _sent_command_stale_warning = false;
+    float _desired_speed = 0.0f;
+    float _desired_turn_rate_cds = 0.0f;
+    Location _target_location;
+
+    // command result tracking (Phase 2)
+    uint32_t _last_cmd_id = 0;
+    bool _last_cmd_accepted = false;
+    uint8_t _last_cmd_reject_reason = 0;
+    uint32_t _last_cmd_result_ms = 0;
+
+    // path buffer (Phase 3)
+    Location _path_points[OFFBOARD_PATH_MAX];
+    float _path_speeds[OFFBOARD_PATH_MAX]; // per-point speed for trajectory mode
+    uint8_t _path_count = 0;
+    uint8_t _path_index = 0;
+    uint32_t _path_id = 0;
+
+    // Phase 5: pause state
+    bool _paused = false;
+    SubMode _pre_pause_submode = SubMode::Hold;
+
+    // Phase 6: safety constraints
+    SafetyConstraints _safety_constraints {};
+
+    // Phase 7: docking state
+    bool _dock_complete = false;
 };
 
 

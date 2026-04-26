@@ -235,6 +235,7 @@ bool Rover::gcs_mode_enabled(const Mode::Number mode_num) const
         (uint8_t)Mode::Number::RTL,
         (uint8_t)Mode::Number::SMART_RTL,
         (uint8_t)Mode::Number::GUIDED,
+        (uint8_t)Mode::Number::OFFBOARD,
 #if MODE_DOCK_ENABLED == ENABLED
         (uint8_t)Mode::Number::DOCK
 #endif

@@ -132,6 +132,13 @@ void ModeAuto::update()
             break;
         }
 
+        case SubMode::Offboard:
+        {
+            // DDS offboard companion controls the vehicle
+            rover.mode_offboard.update();
+            break;
+        }
+
         case SubMode::Stop:
             stop_vehicle();
             break;
@@ -172,6 +179,8 @@ float ModeAuto::wp_bearing() const
     case SubMode::Guided:
     case SubMode::NavScriptTime:
         return rover.mode_guided.wp_bearing();
+    case SubMode::Offboard:
+        return rover.mode_offboard.wp_bearing();
     case SubMode::Circle:
         return rover.g2.mode_circle.wp_bearing();
     }
@@ -196,6 +205,8 @@ float ModeAuto::nav_bearing() const
     case SubMode::Guided:
     case SubMode::NavScriptTime:
         return rover.mode_guided.nav_bearing();
+    case SubMode::Offboard:
+        return rover.mode_offboard.nav_bearing();
     case SubMode::Circle:
         return rover.g2.mode_circle.nav_bearing();
     }
@@ -220,6 +231,8 @@ float ModeAuto::crosstrack_error() const
     case SubMode::Guided:
     case SubMode::NavScriptTime:
         return rover.mode_guided.crosstrack_error();
+    case SubMode::Offboard:
+        return rover.mode_offboard.crosstrack_error();
     case SubMode::Circle:
         return rover.g2.mode_circle.crosstrack_error();
     }
@@ -244,6 +257,8 @@ float ModeAuto::get_desired_lat_accel() const
     case SubMode::Guided:
     case SubMode::NavScriptTime:
         return rover.mode_guided.get_desired_lat_accel();
+    case SubMode::Offboard:
+        return rover.mode_offboard.get_desired_lat_accel();
     case SubMode::Circle:
         return rover.g2.mode_circle.get_desired_lat_accel();
     }
@@ -269,6 +284,8 @@ float ModeAuto::get_distance_to_destination() const
     case SubMode::Guided:
     case SubMode::NavScriptTime:
         return rover.mode_guided.get_distance_to_destination();
+    case SubMode::Offboard:
+        return rover.mode_offboard.get_distance_to_destination();
     case SubMode::Circle:
         return rover.g2.mode_circle.get_distance_to_destination();
     }
@@ -298,6 +315,8 @@ bool ModeAuto::get_desired_location(Location& destination) const
     case SubMode::Guided:
     case SubMode::NavScriptTime:
         return rover.mode_guided.get_desired_location(destination);
+    case SubMode::Offboard:
+        return rover.mode_offboard.get_desired_location(destination);
     case SubMode::Circle:
         return rover.g2.mode_circle.get_desired_location(destination);
     }
@@ -340,6 +359,8 @@ bool ModeAuto::reached_destination() const
     case SubMode::Guided:
     case SubMode::NavScriptTime:
         return rover.mode_guided.reached_destination();
+    case SubMode::Offboard:
+        return rover.mode_offboard.reached_destination();
     case SubMode::Circle:
         return rover.g2.mode_circle.reached_destination();
     }
@@ -365,6 +386,8 @@ bool ModeAuto::set_desired_speed(float speed)
     case SubMode::Guided:
     case SubMode::NavScriptTime:
         return rover.mode_guided.set_desired_speed(speed);
+    case SubMode::Offboard:
+        return rover.mode_offboard.set_desired_speed(speed);
     case SubMode::Circle:
         return rover.g2.mode_circle.set_desired_speed(speed);
     }
@@ -456,6 +479,22 @@ bool ModeAuto::start_loiter()
         return true;
     }
     return false;
+}
+
+// hand over control to DDS offboard companion in AUTO mode
+bool ModeAuto::start_offboard()
+{
+    if (!rover.mode_offboard.enabled()) {
+        gcs().send_text(MAV_SEVERITY_WARNING, "Auto: Offboard not enabled");
+        return false;
+    }
+    if (!rover.mode_offboard._enter()) {
+        gcs().send_text(MAV_SEVERITY_WARNING, "Auto: Offboard enter failed");
+        return false;
+    }
+    _submode = SubMode::Offboard;
+    gcs().send_text(MAV_SEVERITY_INFO, "Auto: Offboard handoff");
+    return true;
 }
 
 // hand over control to external navigation controller in AUTO mode
@@ -793,10 +832,17 @@ void ModeAuto::do_nav_delay(const AP_Mission::Mission_Command& cmd)
     gcs().send_text(MAV_SEVERITY_INFO, "Delaying %u sec", (unsigned)(nav_delay_time_max_ms/1000));
 }
 
-// start guided within auto to allow external navigation system to control vehicle
+// start guided or offboard within auto to allow external navigation system to control vehicle
+// p1=1: guided mode, p1=2: offboard mode
 void ModeAuto::do_nav_guided_enable(const AP_Mission::Mission_Command& cmd)
 {
-    if (cmd.p1 > 0) {
+    if (cmd.p1 == 2) {
+        // prefer offboard handoff
+        if (!start_offboard()) {
+            // fall back to guided if offboard not available
+            start_guided(cmd.content.location);
+        }
+    } else if (cmd.p1 > 0) {
         start_guided(cmd.content.location);
     }
 }
@@ -891,13 +937,29 @@ bool ModeAuto::verify_loiter_time(const AP_Mission::Mission_Command& cmd)
     return result;
 }
 
-// check if guided has completed
+// check if guided or offboard has completed
 bool ModeAuto::verify_nav_guided_enable(const AP_Mission::Mission_Command& cmd)
 {
-    // if we failed to enter guided or this command disables guided
+    // if we failed to enter guided/offboard or this command disables it
     // return true so we move to next command
-    if (_submode != SubMode::Guided || cmd.p1 == 0) {
+    if ((_submode != SubMode::Guided && _submode != SubMode::Offboard) || cmd.p1 == 0) {
         return true;
+    }
+
+    // offboard completion: the offboard mode reports reached_destination
+    // or the heartbeat is lost (failsafe will handle safe behavior)
+    if (_submode == SubMode::Offboard) {
+        if (rover.mode_offboard.reached_destination()) {
+            rover.mode_offboard._exit();
+            return true;
+        }
+        // if offboard heartbeat is lost, return to mission
+        if (rover.mode_offboard._state == ModeOffboard::State::HeartbeatLost) {
+            rover.mode_offboard._exit();
+            gcs().send_text(MAV_SEVERITY_WARNING, "Auto: Offboard heartbeat lost, resuming mission");
+            return true;
+        }
+        return false;
     }
 
     // if a location target was set, return true once vehicle is close

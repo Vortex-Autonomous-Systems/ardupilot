@@ -93,6 +93,7 @@ public:
     friend class ModeAuto;
     friend class ModeCircle;
     friend class ModeGuided;
+    friend class ModeOffboard;
     friend class ModeHold;
     friend class ModeLoiter;
     friend class ModeSteering;
@@ -250,6 +251,7 @@ private:
     ModeManual mode_manual;
     ModeAcro mode_acro;
     ModeGuided mode_guided;
+    ModeOffboard mode_offboard;
     ModeAuto mode_auto;
     ModeLoiter mode_loiter;
     ModeSteering mode_steering;
@@ -342,6 +344,7 @@ private:
     void Log_Write_Sail();
     void Log_Write_Steering();
     void Log_Write_Throttle();
+    void Log_Write_Offboard();
     void Log_Write_RC(void);
     void Log_Write_Vehicle_Startup_Messages();
     void Log_Read(uint16_t log_num, uint16_t start_page, uint16_t end_page);
