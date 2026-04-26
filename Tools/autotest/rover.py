@@ -2664,6 +2664,55 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
             raise NotAchievedException("Did not get ptgi message")
         print("pgti: %s" % str(ptgi))
 
+    def send_onboard_controller_heartbeat(self):
+        self.mav.mav.heartbeat_send(
+            mavutil.mavlink.MAV_TYPE_ONBOARD_CONTROLLER,
+            mavutil.mavlink.MAV_AUTOPILOT_INVALID,
+            0,
+            0,
+            0,
+        )
+
+    def send_offboard_velocity_target(self, speed_m_s, yaw_rate_rads=0.0, target_compid=1):
+        self.mav.mav.set_position_target_local_ned_send(
+            0,  # time_boot_ms
+            self.sysid_thismav(),
+            target_compid,
+            mavutil.mavlink.MAV_FRAME_BODY_OFFSET_NED,
+            0b0000010111000111,  # type_mask (only vx, vy, vz, yaw_rate)
+            0,
+            0,
+            0,  # x, y, z (ignored)
+            speed_m_s,
+            0,
+            0,  # vx, vy, vz
+            0,
+            0,
+            0,  # afx, afy, afz
+            0,
+            yaw_rate_rads,
+        )
+
+    def send_offboard_global_target(self, lat_int, lon_int, target_compid=1):
+        self.mav.mav.set_position_target_global_int_send(
+            0,
+            self.sysid_thismav(),
+            target_compid,
+            mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT,
+            0b0000111111111000,  # only position
+            lat_int,
+            lon_int,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+        )
+
     def OffboardMode(self):
         """Test DDS OFFBOARD mode entry, hold, velocity control, and heartbeat timeout"""
         self.context_push()
@@ -2693,24 +2742,8 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
             # send velocity command via MAVLink SET_POSITION_TARGET_LOCAL_NED
             # this goes through AP_ExternalControl_Rover which routes to mode_offboard
             self.progress("Sending velocity command to OFFBOARD")
-            self.mav.mav.set_position_target_local_ned_send(
-                0,  # time_boot_ms
-                1,  # target_system
-                1,  # target_component
-                mavutil.mavlink.MAV_FRAME_BODY_OFFSET_NED,
-                0b0000111111000111,  # type_mask (only vx, vy, vz, yaw_rate)
-                0,
-                0,
-                0,  # x, y, z (ignored)
-                1,
-                0,
-                0,  # vx, vy, vz m/s - drive forward
-                0,
-                0,
-                0,  # afx, afy, afz
-                0,
-                0.0,  # yaw, yaw_rate
-            )
+            self.send_onboard_controller_heartbeat()
+            self.send_offboard_velocity_target(1, yaw_rate_rads=0.1)
 
             # mode should still be OFFBOARD
             self.assert_mode(30)
@@ -2737,6 +2770,56 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
             except WaitModeTimeout:
                 self.progress("Correctly rejected OFFBOARD when disabled")
 
+            self.disarm_vehicle()
+
+        except Exception as e:
+            self.print_exception_caught(e)
+            ex = e
+
+        self.context_pop()
+
+        if ex is not None:
+            raise ex
+
+    def OffboardModeMAVLinkCompat(self):
+        """Test OFFBOARD accepts companion MAVLink heartbeat and setpoints"""
+        self.context_push()
+        ex = None
+        try:
+            self.set_parameters(
+                {
+                    "OFFB_ENABLE": 1,
+                    "OFFB_HB_TO": 2000,
+                    "OFFB_CMD_TO": 2000,
+                    "OFFB_LOSS_ACT": 0,
+                    "OFFB_STALE_ACT": 0,
+                }
+            )
+            self.wait_ready_to_arm(require_absolute=True)
+            self.arm_vehicle()
+            self.change_mode(30)
+            self.assert_mode(30)
+
+            start = self.mav.location()
+            tstart = self.get_sim_time_cached()
+            last_heartbeat_sent = 0
+            while True:
+                now = self.get_sim_time_cached()
+                if now - tstart > 15:
+                    raise NotAchievedException(
+                        "OFFBOARD ignored companion MAVLink heartbeat/setpoints"
+                    )
+                if now - last_heartbeat_sent > 0.5:
+                    last_heartbeat_sent = now
+                    self.send_onboard_controller_heartbeat()
+                self.send_offboard_velocity_target(1.5)
+                self.delay_sim_time(0.2)
+                self.assert_mode(30)
+                if self.get_distance(start, self.mav.location()) > 3:
+                    break
+
+            self.progress("OFFBOARD moved under companion MAVLink control")
+            self.change_mode("HOLD")
             self.disarm_vehicle()
 
         except Exception as e:
@@ -2820,11 +2903,94 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
         if ex is not None:
             raise ex
 
+    def OffboardAutoMAVLinkCompat(self):
+        """Test AUTO offboard handoff accepts companion MAVLink control"""
+        self.context_push()
+        ex = None
+        try:
+            self.set_parameters(
+                {
+                    "OFFB_ENABLE": 1,
+                    "OFFB_HB_TO": 1500,
+                    "OFFB_CMD_TO": 5000,
+                    "OFFB_LOSS_ACT": 0,
+                    "OFFB_STALE_ACT": 0,
+                }
+            )
+            self.load_mission_from_filepath(
+                os.path.join(
+                    os.path.dirname(__file__),
+                    "ArduRover_Tests",
+                    "Offboard",
+                    "rover-offboard-mavlink-mission.txt",
+                )
+            )
+            self.wait_ready_to_arm(require_absolute=True)
+            self.arm_vehicle()
+            self.change_mode("AUTO")
+
+            tstart = self.get_sim_time_cached()
+            last_heartbeat_sent = 0
+            saw_offboard_handoff = False
+            start = None
+            while True:
+                now = self.get_sim_time_cached()
+                if now - tstart > 20:
+                    raise NotAchievedException(
+                        "AUTO offboard handoff ignored companion MAVLink heartbeat/setpoints"
+                    )
+                if now - last_heartbeat_sent > 0.05:
+                    last_heartbeat_sent = now
+                    self.send_onboard_controller_heartbeat()
+
+                seq = self.mav.waypoint_current()
+                if seq == 3:
+                    saw_offboard_handoff = True
+                    if start is None:
+                        start = self.mav.location()
+                    self.send_offboard_velocity_target(1.5)
+                elif saw_offboard_handoff and seq > 3:
+                    raise NotAchievedException(
+                        "AUTO offboard handoff did not stay active under companion heartbeat"
+                    )
+
+                self.delay_sim_time(0.2)
+                self.assert_mode("AUTO")
+                if start is not None and self.get_distance(start, self.mav.location()) > 3:
+                    break
+
+            self.progress("AUTO offboard handoff moved under companion MAVLink control")
+            self.progress("Verifying AUTO does not advance after OFFBOARD heartbeat loss")
+            tstart = self.get_sim_time_cached()
+            while self.get_sim_time_cached() - tstart < 3:
+                self.send_offboard_velocity_target(1.5)
+                self.delay_sim_time(0.2)
+                self.assert_mode("AUTO")
+                if self.mav.waypoint_current() != 3:
+                    raise NotAchievedException("AUTO advanced mission after OFFBOARD heartbeat loss")
+
+            self.wait_groundspeed(-0.1, 0.2, timeout=10)
+            self.change_mode("HOLD")
+            self.disarm_vehicle()
+            self.assert_current_onboard_log_contains_message("OFFB")
+
+        except Exception as e:
+            self.print_exception_caught(e)
+            ex = e
+
+        self.context_pop()
+
+        if ex is not None:
+            raise ex
+
     def OffboardSafety(self):
         """Test OFFBOARD safety: heartbeat loss causes stop, re-entry resets state, disabled prevents entry"""
         self.context_push()
         ex = None
         try:
+            if self.get_parameter("OFFB_ENABLE") != 0:
+                raise NotAchievedException("OFFBOARD should default disabled for vehicle safety")
+
             self.set_parameters(
                 {
                     "OFFB_ENABLE": 1,
@@ -2841,36 +3007,44 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
             self.change_mode(30)
             self.assert_mode(30)
 
-            # send velocity command
+            # send heartbeat and velocity command from the same companion source
             self.progress("Sending velocity to OFFBOARD")
-            self.mav.mav.set_position_target_local_ned_send(
-                0,
-                1,
-                1,
-                mavutil.mavlink.MAV_FRAME_BODY_OFFSET_NED,
-                0b0000111111000111,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0.0,
+            def refresh_offboard_control(*args, **kwargs):
+                self.send_onboard_controller_heartbeat()
+                self.send_offboard_velocity_target(1, yaw_rate_rads=0.1)
+
+            self.wait_groundspeed(0.5, 2.0, timeout=10, called_function=refresh_offboard_control, minimum_duration=1)
+            self.assert_mode(30)
+
+            # keep heartbeat alive but let the command go stale
+            self.progress("Waiting for command stale timeout under live heartbeat")
+            tstart = self.get_sim_time_cached()
+            while self.get_sim_time_cached() - tstart < 3:
+                self.send_onboard_controller_heartbeat()
+                self.delay_sim_time(0.2)
+
+            self.wait_groundspeed(
+                -0.1,
+                0.2,
+                timeout=10,
+                called_function=lambda *args, **kwargs: self.send_onboard_controller_heartbeat(),
             )
-            self.delay_sim_time(0.5)
             self.assert_mode(30)
+            self.progress("OFFBOARD stopped on stale command")
 
-            # wait for command to go stale (1.5s timeout)
-            self.progress("Waiting for command stale timeout")
-            self.delay_sim_time(3)
+            # prove heartbeat loss stops a moving vehicle even while commands continue
+            self.progress("Restarting motion before heartbeat loss")
+            self.wait_groundspeed(0.5, 2.0, timeout=10, called_function=refresh_offboard_control, minimum_duration=1)
+            self.progress("Waiting for heartbeat loss timeout while commands continue")
+            self.wait_groundspeed(
+                -0.1,
+                0.2,
+                timeout=10,
+                called_function=lambda *args, **kwargs: self.send_offboard_velocity_target(1, yaw_rate_rads=0.1),
+            )
 
-            # vehicle should still be in OFFBOARD mode but in failsafe state
             self.assert_mode(30)
-            self.progress("OFFBOARD correctly held mode during stale command")
+            self.progress("OFFBOARD stopped after heartbeat loss")
 
             # switch out and back in to verify clean re-entry
             self.change_mode("HOLD")
@@ -7878,7 +8052,9 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
                 self.Rally,
                 self.Offboard,
                 self.OffboardMode,
+                self.OffboardModeMAVLinkCompat,
                 self.OffboardModePath,
+                self.OffboardAutoMAVLinkCompat,
                 self.OffboardSafety,
                 self.MAVProxyParam,
                 self.GCSFence,
