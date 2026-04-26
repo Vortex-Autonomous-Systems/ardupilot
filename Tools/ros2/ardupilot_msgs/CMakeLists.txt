@@ -14,6 +14,14 @@ find_package(rosidl_default_generators REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/GlobalPosition.msg"
+  "msg/OffboardHeartbeat.msg"
+  "msg/OffboardStatus.msg"
+  "msg/OffboardCommandResult.msg"
+  "msg/OffboardTrackingStatus.msg"
+  "msg/OffboardLocalizationStatus.msg"
+  "msg/PathCommand.msg"
+  "msg/TrajectoryCommand.msg"
+  "msg/OffboardSafetyConstraints.msg"
   "srv/ArmMotors.srv"
   "srv/ModeSwitch.srv"
   DEPENDENCIES geometry_msgs std_msgs

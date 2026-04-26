@@ -1,0 +1,6 @@
+uint8 active_submode
+float32 position_error
+float32 heading_error
+float32 velocity_error
+float32 distance_remaining
+bool target_valid

@@ -1,0 +1,22 @@
+// generated from rosidl_adapter/resource/msg.idl.em
+// with input from ardupilot_msgs/msg/OffboardStatus.msg
+
+module ardupilot_msgs {
+  module msg {
+    struct OffboardStatus {
+      boolean enabled;
+
+      boolean active;
+
+      uint8 state;
+
+      uint8 submode;
+
+      uint32 heartbeat_age_ms;
+
+      uint32 command_age_ms;
+
+      uint8 failsafe_action;
+    };
+  };
+};

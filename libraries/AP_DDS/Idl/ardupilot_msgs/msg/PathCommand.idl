@@ -1,0 +1,22 @@
+// generated from rosidl_adapter/resource/msg.idl.em
+// with input from ardupilot_msgs/msg/PathCommand.msg
+
+#include "std_msgs/msg/Header.idl"
+
+module ardupilot_msgs {
+  module msg {
+    struct PathCommand {
+      std_msgs::msg::Header header;
+
+      uint32 path_id;
+
+      float speed;
+
+      uint8 num_points;
+
+      double latitudes[16];
+
+      double longitudes[16];
+    };
+  };
+};

@@ -1,0 +1,20 @@
+// generated from rosidl_adapter/resource/msg.idl.em
+// with input from ardupilot_msgs/msg/OffboardTrackingStatus.msg
+
+module ardupilot_msgs {
+  module msg {
+    struct OffboardTrackingStatus {
+      uint8 active_submode;
+
+      float position_error;
+
+      float heading_error;
+
+      float velocity_error;
+
+      float distance_remaining;
+
+      boolean target_valid;
+    };
+  };
+};

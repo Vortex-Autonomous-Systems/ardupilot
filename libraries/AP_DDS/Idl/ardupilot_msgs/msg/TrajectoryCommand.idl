@@ -1,0 +1,26 @@
+// generated from rosidl_adapter/resource/msg.idl.em
+// with input from ardupilot_msgs/msg/TrajectoryCommand.msg
+
+#include "std_msgs/msg/Header.idl"
+
+module ardupilot_msgs {
+  module msg {
+    struct TrajectoryCommand {
+      std_msgs::msg::Header header;
+
+      uint32 trajectory_id;
+
+      float speed;
+
+      uint8 num_points;
+
+      double time_offsets_s[16];
+
+      double latitudes[16];
+
+      double longitudes[16];
+
+      float speeds[16];
+    };
+  };
+};
