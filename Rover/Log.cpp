@@ -249,7 +249,7 @@ struct PACKED log_Offboard {
 
 void Rover::Log_Write_Offboard()
 {
-    if (control_mode != &mode_offboard) {
+    if (!control_mode->in_offboard_mode()) {
         return;
     }
 

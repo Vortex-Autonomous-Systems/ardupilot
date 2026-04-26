@@ -30,7 +30,7 @@ bool AP_ExternalControl_Rover::set_velocity_turn_rate_target(const Vector3f &lin
     const float target_speed = linear_velocity_body.x;
     const float turn_rate_cds = isnan(yaw_rate_rads)? 0: degrees(yaw_rate_rads)*100;
 
-    if (rover.control_mode == &rover.mode_offboard) {
+    if (rover.control_mode->in_offboard_mode()) {
         rover.mode_offboard.set_desired_turn_rate_and_speed(turn_rate_cds, target_speed);
         return true;
     }
@@ -50,7 +50,7 @@ bool AP_ExternalControl_Rover::set_global_position_target(const Location& loc)
         return false;
     }
 
-    if (rover.control_mode == &rover.mode_offboard) {
+    if (rover.control_mode->in_offboard_mode()) {
         return rover.mode_offboard.set_desired_location(loc);
     }
 
@@ -171,7 +171,7 @@ bool AP_ExternalControl_Rover::ready_for_external_control()
 
 bool AP_ExternalControl_Rover::ready_for_offboard() const
 {
-    return rover.control_mode == &rover.mode_offboard && rover.mode_offboard.enabled();
+    return rover.control_mode->in_offboard_mode() && rover.mode_offboard.enabled();
 }
 
 #endif // AP_EXTERNAL_CONTROL_ENABLED

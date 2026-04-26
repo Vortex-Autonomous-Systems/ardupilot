@@ -20,10 +20,13 @@ bool ModeOffboard::_enter()
     _desired_turn_rate_cds = 0.0f;
     _sent_heartbeat_lost_warning = false;
     _sent_command_stale_warning = false;
+    _sent_localization_invalid_warning = false;
+    _mavlink_owner_set = false;
     _last_cmd_id = 0;
     _last_cmd_accepted = false;
     _last_cmd_reject_reason = 0;
     _last_cmd_result_ms = 0;
+    _last_localization_valid_ms = 0;
     _path_count = 0;
     _path_index = 0;
     _path_id = 0;
@@ -39,6 +42,7 @@ void ModeOffboard::_exit()
 {
     _state = State::Disabled;
     _have_target = false;
+    _mavlink_owner_set = false;
 }
 
 void ModeOffboard::update()
@@ -156,10 +160,19 @@ bool ModeOffboard::get_desired_location(Location& destination) const
 
 bool ModeOffboard::reached_destination() const
 {
-    if (_submode == SubMode::GlobalPosition) {
+    switch (_submode) {
+    case SubMode::GlobalPosition:
+    case SubMode::Path:
+    case SubMode::Trajectory:
+    case SubMode::Dock:
         return _reached_destination;
+    case SubMode::Hold:
+    case SubMode::Stop:
+    case SubMode::VelocityTurnRate:
+        return false;
     }
-    return true;
+
+    return false;
 }
 
 bool ModeOffboard::set_desired_speed(float speed)
@@ -200,10 +213,39 @@ void ModeOffboard::set_desired_turn_rate_and_speed(float turn_rate_cds, float ta
     _sent_command_stale_warning = false;
 }
 
-void ModeOffboard::set_heartbeat()
+void ModeOffboard::note_heartbeat()
 {
     _last_heartbeat_ms = millis();
     _sent_heartbeat_lost_warning = false;
+}
+
+void ModeOffboard::note_mavlink_heartbeat(uint8_t sysid, uint8_t compid, uint8_t channel)
+{
+    if (!_mavlink_owner_set) {
+        _mavlink_owner_sysid = sysid;
+        _mavlink_owner_compid = compid;
+        _mavlink_owner_channel = channel;
+        _mavlink_owner_set = true;
+    }
+
+    if (!mavlink_source_allowed(sysid, compid, channel)) {
+        return;
+    }
+
+    note_heartbeat();
+}
+
+bool ModeOffboard::mavlink_source_allowed(uint8_t sysid, uint8_t compid, uint8_t channel) const
+{
+    return _mavlink_owner_set &&
+           _mavlink_owner_sysid == sysid &&
+           _mavlink_owner_compid == compid &&
+           _mavlink_owner_channel == channel;
+}
+
+void ModeOffboard::set_heartbeat()
+{
+    note_heartbeat();
     if (_have_target) {
         _state = State::Active;
     } else {
@@ -237,7 +279,7 @@ void ModeOffboard::record_command_result(uint32_t cmd_id, bool accepted, uint8_t
 bool ModeOffboard::get_status(AP_ExternalControl::OffboardStatus &status) const
 {
     status.enabled = enabled();
-    status.active = rover.control_mode->mode_number() == mode_number();
+    status.active = rover.control_mode->in_offboard_mode();
     status.state = (uint8_t)_state;
     status.submode = (uint8_t)_submode;
     const uint32_t now_ms = millis();
@@ -284,19 +326,20 @@ bool ModeOffboard::get_tracking_status(AP_ExternalControl::OffboardTrackingStatu
 
 bool ModeOffboard::get_localization_status(AP_ExternalControl::OffboardLocalizationStatus &loc_status) const
 {
-    nav_filter_status filter_status;
-    rover.ahrs.get_filter_status(filter_status);
+    const uint32_t now_ms = millis();
+    const bool data_valid = localization_data_valid();
+    const uint32_t age_ms = data_valid ? 0 : ((_last_localization_valid_ms == 0) ? UINT32_MAX : (now_ms - _last_localization_valid_ms));
 
-    loc_status.source_valid = filter_status.flags.horiz_pos_abs || filter_status.flags.horiz_pos_rel;
+    loc_status.source_valid = localization_healthy(now_ms);
     loc_status.discontinuity_detected = false;
     loc_status.reset_count = 0;
 
-    if (loc_status.source_valid) {
+    if (loc_status.source_valid && age_ms != UINT32_MAX) {
         loc_status.health = 1; // HEALTH_GOOD
-        loc_status.age_ms = 0;
+        loc_status.age_ms = age_ms;
     } else {
         loc_status.health = 3; // HEALTH_INVALID
-        loc_status.age_ms = UINT32_MAX;
+        loc_status.age_ms = age_ms;
     }
 
     return true;
@@ -341,13 +384,22 @@ void ModeOffboard::update_state(uint32_t now_ms)
     }
 
     // check localization health for position-based submodes
-    if (submode_needs_localization() && !localization_healthy()) {
+    if (localization_data_valid()) {
+        _last_localization_valid_ms = now_ms;
+        _sent_localization_invalid_warning = false;
+    }
+
+    if (submode_needs_localization() && !localization_healthy(now_ms)) {
         _state = State::LocalizationInvalid;
-        gcs().send_text(MAV_SEVERITY_WARNING, "Offboard localization invalid");
+        if (!_sent_localization_invalid_warning) {
+            _sent_localization_invalid_warning = true;
+            gcs().send_text(MAV_SEVERITY_WARNING, "Offboard localization invalid");
+        }
         return;
     }
 
     _sent_command_stale_warning = false;
+    _sent_localization_invalid_warning = false;
     _state = State::Active;
 }
 
@@ -508,7 +560,12 @@ uint32_t ModeOffboard::command_timeout_ms() const
     return MAX((int32_t)g2.offboard_command_timeout.get(), 100);
 }
 
-bool ModeOffboard::localization_healthy() const
+uint32_t ModeOffboard::localization_timeout_ms() const
+{
+    return MAX((int32_t)g2.offboard_loc_timeout.get(), 100);
+}
+
+bool ModeOffboard::localization_data_valid() const
 {
     nav_filter_status filter_status;
     rover.ahrs.get_filter_status(filter_status);
@@ -524,6 +581,19 @@ bool ModeOffboard::localization_healthy() const
     }
 
     return true;
+}
+
+bool ModeOffboard::localization_healthy(uint32_t now_ms) const
+{
+    if (localization_data_valid()) {
+        return true;
+    }
+
+    if (_last_localization_valid_ms == 0) {
+        return false;
+    }
+
+    return (now_ms - _last_localization_valid_ms) <= localization_timeout_ms();
 }
 
 bool ModeOffboard::submode_needs_localization() const

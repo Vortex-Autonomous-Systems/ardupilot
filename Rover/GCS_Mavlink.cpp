@@ -623,14 +623,33 @@ const struct GCS_MAVLINK::stream_entries GCS_MAVLINK::all_stream_entries[] = {
     MAV_STREAM_TERMINATOR // must have this at end of stream_entries
 };
 
+bool GCS_MAVLINK_Rover::in_guided_or_offboard_mode() const
+{
+    return rover.control_mode->in_guided_mode() || rover.control_mode->in_offboard_mode();
+}
+
+bool GCS_MAVLINK_Rover::use_mavlink_offboard() const
+{
+    return rover.control_mode->in_offboard_mode();
+}
+
+bool GCS_MAVLINK_Rover::mavlink_offboard_source_allowed(const mavlink_message_t &msg) const
+{
+    return !use_mavlink_offboard() ||
+           rover.mode_offboard.mavlink_source_allowed(msg.sysid, msg.compid, (uint8_t)chan);
+}
+
 bool GCS_MAVLINK_Rover::handle_guided_request(AP_Mission::Mission_Command &cmd)
 {
-    if (!rover.control_mode->in_guided_mode()) {
-        // only accept position updates when in GUIDED mode
+    if (!in_guided_or_offboard_mode()) {
+        // only accept position updates when in GUIDED or offboard-active modes
         return false;
     }
 
-    // make any new wp uploaded instant (in case we are already in Guided mode)
+    if (use_mavlink_offboard()) {
+        return false;
+    }
+
     return rover.mode_guided.set_desired_location(cmd.content.location);
 }
 
@@ -674,7 +693,7 @@ MAV_RESULT GCS_MAVLINK_Rover::handle_command_int_packet(const mavlink_command_in
         return MAV_RESULT_ACCEPTED;
 
     case MAV_CMD_DO_REPOSITION:
-        return handle_command_int_do_reposition(packet);
+        return handle_command_int_do_reposition(packet, msg);
 
     case MAV_CMD_DO_SET_REVERSE:
         // param1 : Direction (0=Forward, 1=Reverse)
@@ -723,8 +742,16 @@ MAV_RESULT GCS_MAVLINK_Rover::handle_command_nav_set_yaw_speed(const mavlink_com
         // param3 : 0 = param1 is absolute, 1 = param1 is relative
 
         // exit if vehicle is not in Guided mode
-        if (!rover.control_mode->in_guided_mode()) {
+        if (!in_guided_or_offboard_mode()) {
             return MAV_RESULT_FAILED;
+        }
+
+        if (use_mavlink_offboard()) {
+            if (!mavlink_offboard_source_allowed(msg)) {
+                return MAV_RESULT_DENIED;
+            }
+            rover.mode_offboard.set_desired_turn_rate_and_speed(0.0f, packet.param2);
+            return MAV_RESULT_ACCEPTED;
         }
 
         // get final angle, 1 = Relative, 0 = Absolute
@@ -739,10 +766,10 @@ MAV_RESULT GCS_MAVLINK_Rover::handle_command_nav_set_yaw_speed(const mavlink_com
 }
 #endif
 
-MAV_RESULT GCS_MAVLINK_Rover::handle_command_int_do_reposition(const mavlink_command_int_t &packet)
+MAV_RESULT GCS_MAVLINK_Rover::handle_command_int_do_reposition(const mavlink_command_int_t &packet, const mavlink_message_t &msg)
 {
     const bool change_modes = ((int32_t)packet.param2 & MAV_DO_REPOSITION_FLAGS_CHANGE_MODE) == MAV_DO_REPOSITION_FLAGS_CHANGE_MODE;
-    if (!rover.control_mode->in_guided_mode() && !change_modes) {
+    if (!in_guided_or_offboard_mode() && !change_modes) {
         return MAV_RESULT_DENIED;
     }
 
@@ -759,10 +786,14 @@ MAV_RESULT GCS_MAVLINK_Rover::handle_command_int_do_reposition(const mavlink_com
         return MAV_RESULT_DENIED;
     }
 
-    if (!rover.control_mode->in_guided_mode()) {
+    if (!in_guided_or_offboard_mode()) {
         if (!rover.set_mode(Mode::Number::GUIDED, ModeReason::GCS_COMMAND)) {
             return MAV_RESULT_FAILED;
         }
+    }
+
+    if (use_mavlink_offboard() && !mavlink_offboard_source_allowed(msg)) {
+        return MAV_RESULT_DENIED;
     }
 
     if (is_positive(packet.param1)) {
@@ -772,7 +803,11 @@ MAV_RESULT GCS_MAVLINK_Rover::handle_command_int_do_reposition(const mavlink_com
     }
 
     // set the destination
-    if (!rover.mode_guided.set_desired_location(requested_location)) {
+    if (use_mavlink_offboard()) {
+        if (!rover.mode_offboard.set_desired_location(requested_location)) {
+            return MAV_RESULT_FAILED;
+        }
+    } else if (!rover.mode_guided.set_desired_location(requested_location)) {
         return MAV_RESULT_FAILED;
     }
 
@@ -782,6 +817,16 @@ MAV_RESULT GCS_MAVLINK_Rover::handle_command_int_do_reposition(const mavlink_com
 void GCS_MAVLINK_Rover::handle_message(const mavlink_message_t &msg)
 {
     switch (msg.msgid) {
+
+    case MAVLINK_MSG_ID_HEARTBEAT:
+        GCS_MAVLINK::handle_heartbeat(msg);
+        if (mavlink_msg_heartbeat_get_type(&msg) == MAV_TYPE_ONBOARD_CONTROLLER) {
+            rover.mode_offboard.note_mavlink_heartbeat(msg.sysid, msg.compid, (uint8_t)chan);
+            if (use_mavlink_offboard() && mavlink_offboard_source_allowed(msg)) {
+                rover.mode_offboard.set_heartbeat();
+            }
+        }
+        break;
 
     case MAVLINK_MSG_ID_SET_ATTITUDE_TARGET:
         handle_set_attitude_target(msg);
@@ -819,7 +864,10 @@ void GCS_MAVLINK_Rover::handle_set_attitude_target(const mavlink_message_t &msg)
     mavlink_msg_set_attitude_target_decode(&msg, &packet);
 
     // exit if vehicle is not in Guided mode
-    if (!rover.control_mode->in_guided_mode()) {
+    if (!in_guided_or_offboard_mode()) {
+        return;
+    }
+    if (!mavlink_offboard_source_allowed(msg)) {
         return;
     }
 
@@ -831,6 +879,16 @@ void GCS_MAVLINK_Rover::handle_set_attitude_target(const mavlink_message_t &msg)
     // convert thrust to ground speed
     packet.thrust = constrain_float(packet.thrust, -1.0f, 1.0f);
     const float target_speed = rover.control_mode->get_speed_default() * packet.thrust;
+
+    if (use_mavlink_offboard()) {
+        if ((packet.type_mask & MAVLINK_SET_ATT_TYPE_MASK_YAW_RATE_IGNORE) != 0) {
+            return;
+        }
+        const float target_turn_rate_cds = ((packet.type_mask & MAVLINK_SET_ATT_TYPE_MASK_YAW_RATE_IGNORE) != 0) ?
+            0.0f : (RAD_TO_DEG * packet.body_yaw_rate) * 100.0f;
+        rover.mode_offboard.set_desired_turn_rate_and_speed(target_turn_rate_cds, target_speed);
+        return;
+    }
 
     // if the body_yaw_rate field is ignored, convert quaternion to heading
     if ((packet.type_mask & MAVLINK_SET_ATT_TYPE_MASK_YAW_RATE_IGNORE) != 0) {
@@ -850,13 +908,10 @@ void GCS_MAVLINK_Rover::handle_set_position_target_local_ned(const mavlink_messa
     mavlink_msg_set_position_target_local_ned_decode(&msg, &packet);
 
     // exit if vehicle is not in Guided mode
-    if (!rover.control_mode->in_guided_mode()) {
+    if (!in_guided_or_offboard_mode()) {
         return;
     }
-
-    // need ekf origin
-    Location ekf_origin;
-    if (!rover.ahrs.get_origin(ekf_origin)) {
+    if (!mavlink_offboard_source_allowed(msg)) {
         return;
     }
 
@@ -896,6 +951,10 @@ void GCS_MAVLINK_Rover::handle_set_position_target_local_ned(const mavlink_messa
         case MAV_FRAME_LOCAL_NED:
         default:
             // MAV_FRAME_LOCAL_NED is interpreted as an offset from EKF origin
+            Location ekf_origin;
+            if (!rover.ahrs.get_origin(ekf_origin)) {
+                return;
+            }
             target_loc = ekf_origin;
             target_loc.offset(packet.x, packet.y);
             break;
@@ -947,25 +1006,50 @@ void GCS_MAVLINK_Rover::handle_set_position_target_local_ned(const mavlink_messa
     // set guided mode targets
     if (!pos_ignore) {
         // consume position target
-        if (!rover.mode_guided.set_desired_location(target_loc)) {
+        if (use_mavlink_offboard()) {
+            if (!rover.mode_offboard.set_desired_location(target_loc)) {
+                // GCS will need to monitor desired location to
+                // see if they are having an effect.
+            }
+        } else if (!rover.mode_guided.set_desired_location(target_loc)) {
             // GCS will need to monitor desired location to
             // see if they are having an effect.
         }
     } else if (!vel_ignore && acc_ignore && yaw_ignore && yaw_rate_ignore) {
         // consume velocity
-        rover.mode_guided.set_desired_heading_and_speed(target_yaw_cd, speed_dir * target_speed);
+        if (use_mavlink_offboard()) {
+            rover.mode_offboard.set_desired_turn_rate_and_speed(0.0f, speed_dir * target_speed);
+        } else {
+            rover.mode_guided.set_desired_heading_and_speed(target_yaw_cd, speed_dir * target_speed);
+        }
     } else if (!vel_ignore && acc_ignore && yaw_ignore && !yaw_rate_ignore) {
         // consume velocity and turn rate
-        rover.mode_guided.set_desired_turn_rate_and_speed(target_turn_rate_cds, speed_dir * target_speed);
+        if (use_mavlink_offboard()) {
+            rover.mode_offboard.set_desired_turn_rate_and_speed(target_turn_rate_cds, speed_dir * target_speed);
+        } else {
+            rover.mode_guided.set_desired_turn_rate_and_speed(target_turn_rate_cds, speed_dir * target_speed);
+        }
     } else if (!vel_ignore && acc_ignore && !yaw_ignore && yaw_rate_ignore) {
         // consume velocity and heading
-        rover.mode_guided.set_desired_heading_and_speed(target_yaw_cd, speed_dir * target_speed);
+        if (use_mavlink_offboard()) {
+            return;
+        } else {
+            rover.mode_guided.set_desired_heading_and_speed(target_yaw_cd, speed_dir * target_speed);
+        }
     } else if (vel_ignore && acc_ignore && !yaw_ignore && yaw_rate_ignore) {
         // consume just target heading (probably only skid steering vehicles can do this)
-        rover.mode_guided.set_desired_heading_and_speed(target_yaw_cd, 0.0f);
+        if (use_mavlink_offboard()) {
+            return;
+        } else {
+            rover.mode_guided.set_desired_heading_and_speed(target_yaw_cd, 0.0f);
+        }
     } else if (vel_ignore && acc_ignore && yaw_ignore && !yaw_rate_ignore) {
         // consume just turn rate (probably only skid steering vehicles can do this)
-        rover.mode_guided.set_desired_turn_rate_and_speed(target_turn_rate_cds, 0.0f);
+        if (use_mavlink_offboard()) {
+            rover.mode_offboard.set_desired_turn_rate_and_speed(target_turn_rate_cds, 0.0f);
+        } else {
+            rover.mode_guided.set_desired_turn_rate_and_speed(target_turn_rate_cds, 0.0f);
+        }
     }
 }
 
@@ -976,7 +1060,10 @@ void GCS_MAVLINK_Rover::handle_set_position_target_global_int(const mavlink_mess
     mavlink_msg_set_position_target_global_int_decode(&msg, &packet);
 
     // exit if vehicle is not in Guided mode
-    if (!rover.control_mode->in_guided_mode()) {
+    if (!in_guided_or_offboard_mode()) {
+        return;
+    }
+    if (!mavlink_offboard_source_allowed(msg)) {
         return;
     }
     // check for supported coordinate frames
@@ -1043,25 +1130,50 @@ void GCS_MAVLINK_Rover::handle_set_position_target_global_int(const mavlink_mess
     // set guided mode targets
     if (!pos_ignore) {
         // consume position target
-        if (!rover.mode_guided.set_desired_location(target_loc)) {
+        if (use_mavlink_offboard()) {
+            if (!rover.mode_offboard.set_desired_location(target_loc)) {
+                // GCS will just need to look at desired location
+                // outputs to see if it having an effect.
+            }
+        } else if (!rover.mode_guided.set_desired_location(target_loc)) {
             // GCS will just need to look at desired location
             // outputs to see if it having an effect.
         }
     } else if (!vel_ignore && acc_ignore && yaw_ignore && yaw_rate_ignore) {
         // consume velocity
-        rover.mode_guided.set_desired_heading_and_speed(target_yaw_cd, speed_dir * target_speed);
+        if (use_mavlink_offboard()) {
+            rover.mode_offboard.set_desired_turn_rate_and_speed(0.0f, speed_dir * target_speed);
+        } else {
+            rover.mode_guided.set_desired_heading_and_speed(target_yaw_cd, speed_dir * target_speed);
+        }
     } else if (!vel_ignore && acc_ignore && yaw_ignore && !yaw_rate_ignore) {
         // consume velocity and turn rate
-        rover.mode_guided.set_desired_turn_rate_and_speed(target_turn_rate_cds, speed_dir * target_speed);
+        if (use_mavlink_offboard()) {
+            rover.mode_offboard.set_desired_turn_rate_and_speed(target_turn_rate_cds, speed_dir * target_speed);
+        } else {
+            rover.mode_guided.set_desired_turn_rate_and_speed(target_turn_rate_cds, speed_dir * target_speed);
+        }
     } else if (!vel_ignore && acc_ignore && !yaw_ignore && yaw_rate_ignore) {
         // consume velocity
-        rover.mode_guided.set_desired_heading_and_speed(target_yaw_cd, speed_dir * target_speed);
+        if (use_mavlink_offboard()) {
+            return;
+        } else {
+            rover.mode_guided.set_desired_heading_and_speed(target_yaw_cd, speed_dir * target_speed);
+        }
     } else if (vel_ignore && acc_ignore && !yaw_ignore && yaw_rate_ignore) {
         // consume just target heading (probably only skid steering vehicles can do this)
-        rover.mode_guided.set_desired_heading_and_speed(target_yaw_cd, 0.0f);
+        if (use_mavlink_offboard()) {
+            return;
+        } else {
+            rover.mode_guided.set_desired_heading_and_speed(target_yaw_cd, 0.0f);
+        }
     } else if (vel_ignore && acc_ignore && yaw_ignore && !yaw_rate_ignore) {
         // consume just turn rate(probably only skid steering vehicles can do this)
-        rover.mode_guided.set_desired_turn_rate_and_speed(target_turn_rate_cds, 0.0f);
+        if (use_mavlink_offboard()) {
+            rover.mode_offboard.set_desired_turn_rate_and_speed(target_turn_rate_cds, 0.0f);
+        } else {
+            rover.mode_guided.set_desired_turn_rate_and_speed(target_turn_rate_cds, 0.0f);
+        }
     }
 }
 

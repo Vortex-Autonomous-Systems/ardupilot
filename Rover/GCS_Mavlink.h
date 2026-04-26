@@ -22,7 +22,7 @@ protected:
 
     MAV_RESULT _handle_command_preflight_calibration(const mavlink_command_int_t &packet, const mavlink_message_t &msg) override;
     MAV_RESULT handle_command_int_packet(const mavlink_command_int_t &packet, const mavlink_message_t &msg) override;
-    MAV_RESULT handle_command_int_do_reposition(const mavlink_command_int_t &packet);
+    MAV_RESULT handle_command_int_do_reposition(const mavlink_command_int_t &packet, const mavlink_message_t &msg);
     MAV_RESULT handle_command_nav_set_yaw_speed(const mavlink_command_int_t &packet, const mavlink_message_t &msg);
 
     void send_position_target_global_int() override;
@@ -37,6 +37,10 @@ protected:
     void send_pid_tuning() override;
 
 private:
+
+    bool in_guided_or_offboard_mode() const;
+    bool use_mavlink_offboard() const;
+    bool mavlink_offboard_source_allowed(const mavlink_message_t &msg) const;
 
     void handle_message(const mavlink_message_t &msg) override;
     bool handle_guided_request(AP_Mission::Mission_Command &cmd) override;

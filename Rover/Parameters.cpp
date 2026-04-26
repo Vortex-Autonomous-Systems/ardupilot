@@ -706,7 +706,7 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     // @Description: Enables DDS-first OFFBOARD mode support for Rover.
     // @Values: 0:Disabled,1:Enabled
     // @User: Advanced
-    AP_GROUPINFO("OFFB_ENABLE", 58, ParametersG2, offboard_enable, 1),
+    AP_GROUPINFO("OFFB_ENABLE", 58, ParametersG2, offboard_enable, 0),
 
     // @Param: OFFB_HB_TO
     // @DisplayName: Offboard heartbeat timeout

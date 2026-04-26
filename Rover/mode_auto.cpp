@@ -953,11 +953,16 @@ bool ModeAuto::verify_nav_guided_enable(const AP_Mission::Mission_Command& cmd)
             rover.mode_offboard._exit();
             return true;
         }
-        // if offboard heartbeat is lost, return to mission
+        // OFFBOARD faults must not advance the AUTO mission on real vehicles.
+        // ModeOffboard applies the configured stop/hold action in place.
         if (rover.mode_offboard._state == ModeOffboard::State::HeartbeatLost) {
-            rover.mode_offboard._exit();
-            gcs().send_text(MAV_SEVERITY_WARNING, "Auto: Offboard heartbeat lost, resuming mission");
-            return true;
+            return false;
+        }
+        if (rover.mode_offboard._state == ModeOffboard::State::CommandStale) {
+            return false;
+        }
+        if (rover.mode_offboard._state == ModeOffboard::State::LocalizationInvalid) {
+            return false;
         }
         return false;
     }

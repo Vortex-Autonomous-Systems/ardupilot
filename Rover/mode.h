@@ -257,6 +257,9 @@ public:
     // return if external control is allowed in this mode (Guided or Guided-within-Auto)
     bool in_guided_mode() const override { return _submode == SubMode::Guided || _submode == SubMode::NavScriptTime; }
 
+    // return if DDS offboard control is active in this mode
+    bool in_offboard_mode() const override { return _submode == SubMode::Offboard; }
+
     // return heading (in degrees) and cross track error (in meters) for reporting to ground station (NAV_CONTROLLER_OUTPUT message)
     float wp_bearing() const override;
     float nav_bearing() const override;
@@ -637,8 +640,10 @@ public:
     void update() override;
 
     bool is_autopilot_mode() const override { return true; }
+    bool allows_arming() const override { return false; }
     bool in_guided_mode() const override { return false; }
     bool in_offboard_mode() const override { return true; }
+    bool requires_position() const override { return false; }
 
     float wp_bearing() const override;
     float nav_bearing() const override;
@@ -651,6 +656,9 @@ public:
 
     bool set_desired_location(const Location &destination, Location next_destination = Location()) override WARN_IF_UNUSED;
     void set_desired_turn_rate_and_speed(float turn_rate_cds, float target_speed);
+    void note_heartbeat();
+    void note_mavlink_heartbeat(uint8_t sysid, uint8_t compid, uint8_t channel);
+    bool mavlink_source_allowed(uint8_t sysid, uint8_t compid, uint8_t channel) const;
     void set_heartbeat();
     void set_stop();
     void set_hold();
@@ -699,20 +707,28 @@ private:
     void run_path();
     void run_dock();
     void apply_failsafe();
-    bool localization_healthy() const;
+    bool localization_data_valid() const;
+    bool localization_healthy(uint32_t now_ms) const;
     bool submode_needs_localization() const;
     uint32_t heartbeat_timeout_ms() const;
     uint32_t command_timeout_ms() const;
+    uint32_t localization_timeout_ms() const;
     FailsafeAction failsafe_action() const;
 
     SubMode _submode = SubMode::Hold;
     State _state = State::Disabled;
     uint32_t _last_heartbeat_ms = 0;
+    uint8_t _mavlink_owner_sysid = 0;
+    uint8_t _mavlink_owner_compid = 0;
+    uint8_t _mavlink_owner_channel = 0;
+    bool _mavlink_owner_set = false;
     uint32_t _last_command_ms = 0;
+    uint32_t _last_localization_valid_ms = 0;
     bool _have_target = false;
     bool _reached_destination = false;
     bool _sent_heartbeat_lost_warning = false;
     bool _sent_command_stale_warning = false;
+    bool _sent_localization_invalid_warning = false;
     float _desired_speed = 0.0f;
     float _desired_turn_rate_cds = 0.0f;
     Location _target_location;
