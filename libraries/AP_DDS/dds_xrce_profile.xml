@@ -223,6 +223,118 @@
       </historyQos>
     </topic>
   </data_writer>
+  <topic profile_name="offboardstatus__t">
+    <name>rt/ap/offboard/status</name>
+    <dataType>ardupilot_msgs::msg::dds_::OffboardStatus_</dataType>
+    <historyQos>
+      <kind>KEEP_LAST</kind>
+      <depth>5</depth>
+    </historyQos>
+  </topic>
+  <data_writer profile_name="offboardstatus__dw">
+    <historyMemoryPolicy>PREALLOCATED_WITH_REALLOC</historyMemoryPolicy>
+    <qos>
+      <reliability>
+        <kind>RELIABLE</kind>
+      </reliability>
+      <durability>
+        <kind>VOLATILE</kind>
+      </durability>
+    </qos>
+    <topic>
+      <kind>NO_KEY</kind>
+      <name>rt/ap/offboard/status</name>
+      <dataType>ardupilot_msgs::msg::dds_::OffboardStatus_</dataType>
+      <historyQos>
+        <kind>KEEP_LAST</kind>
+        <depth>5</depth>
+      </historyQos>
+    </topic>
+  </data_writer>
+  <topic profile_name="offboardcmdresult__t">
+    <name>rt/ap/offboard/command_result</name>
+    <dataType>ardupilot_msgs::msg::dds_::OffboardCommandResult_</dataType>
+    <historyQos>
+      <kind>KEEP_LAST</kind>
+      <depth>5</depth>
+    </historyQos>
+  </topic>
+  <data_writer profile_name="offboardcmdresult__dw">
+    <historyMemoryPolicy>PREALLOCATED_WITH_REALLOC</historyMemoryPolicy>
+    <qos>
+      <reliability>
+        <kind>RELIABLE</kind>
+      </reliability>
+      <durability>
+        <kind>VOLATILE</kind>
+      </durability>
+    </qos>
+    <topic>
+      <kind>NO_KEY</kind>
+      <name>rt/ap/offboard/command_result</name>
+      <dataType>ardupilot_msgs::msg::dds_::OffboardCommandResult_</dataType>
+      <historyQos>
+        <kind>KEEP_LAST</kind>
+        <depth>5</depth>
+      </historyQos>
+    </topic>
+  </data_writer>
+  <topic profile_name="offboardtracking__t">
+    <name>rt/ap/offboard/tracking_status</name>
+    <dataType>ardupilot_msgs::msg::dds_::OffboardTrackingStatus_</dataType>
+    <historyQos>
+      <kind>KEEP_LAST</kind>
+      <depth>5</depth>
+    </historyQos>
+  </topic>
+  <data_writer profile_name="offboardtracking__dw">
+    <historyMemoryPolicy>PREALLOCATED_WITH_REALLOC</historyMemoryPolicy>
+    <qos>
+      <reliability>
+        <kind>BEST_EFFORT</kind>
+      </reliability>
+      <durability>
+        <kind>VOLATILE</kind>
+      </durability>
+    </qos>
+    <topic>
+      <kind>NO_KEY</kind>
+      <name>rt/ap/offboard/tracking_status</name>
+      <dataType>ardupilot_msgs::msg::dds_::OffboardTrackingStatus_</dataType>
+      <historyQos>
+        <kind>KEEP_LAST</kind>
+        <depth>5</depth>
+      </historyQos>
+    </topic>
+  </data_writer>
+  <topic profile_name="offboardlocstatus__t">
+    <name>rt/ap/offboard/localization_status</name>
+    <dataType>ardupilot_msgs::msg::dds_::OffboardLocalizationStatus_</dataType>
+    <historyQos>
+      <kind>KEEP_LAST</kind>
+      <depth>5</depth>
+    </historyQos>
+  </topic>
+  <data_writer profile_name="offboardlocstatus__dw">
+    <historyMemoryPolicy>PREALLOCATED_WITH_REALLOC</historyMemoryPolicy>
+    <qos>
+      <reliability>
+        <kind>RELIABLE</kind>
+      </reliability>
+      <durability>
+        <kind>VOLATILE</kind>
+      </durability>
+    </qos>
+    <topic>
+      <kind>NO_KEY</kind>
+      <name>rt/ap/offboard/localization_status</name>
+      <dataType>ardupilot_msgs::msg::dds_::OffboardLocalizationStatus_</dataType>
+      <historyQos>
+        <kind>KEEP_LAST</kind>
+        <depth>5</depth>
+      </historyQos>
+    </topic>
+  </data_writer>
   <topic profile_name="joy__t">
     <name>rt/ap/joy</name>
     <dataType>sensor_msgs::msg::dds_::Joy_</dataType>
@@ -289,6 +401,66 @@
       <kind>NO_KEY</kind>
       <name>rt/ap/cmd_gps_pose</name>
       <dataType>ardupilot_msgs::msg::dds_::GlobalPosition_</dataType>
+    </topic>
+  </data_reader>
+  <topic profile_name="offboardheartbeat__t">
+    <name>rt/ap/offboard/heartbeat</name>
+    <dataType>ardupilot_msgs::msg::dds_::OffboardHeartbeat_</dataType>
+    <historyQos>
+      <kind>KEEP_LAST</kind>
+      <depth>5</depth>
+    </historyQos>
+  </topic>
+  <data_reader profile_name="offboardheartbeat__dr">
+    <topic>
+      <kind>NO_KEY</kind>
+      <name>rt/ap/offboard/heartbeat</name>
+      <dataType>ardupilot_msgs::msg::dds_::OffboardHeartbeat_</dataType>
+    </topic>
+  </data_reader>
+  <topic profile_name="pathcommand__t">
+    <name>rt/ap/offboard/cmd_path</name>
+    <dataType>ardupilot_msgs::msg::dds_::PathCommand_</dataType>
+    <historyQos>
+      <kind>KEEP_LAST</kind>
+      <depth>5</depth>
+    </historyQos>
+  </topic>
+  <data_reader profile_name="pathcommand__dr">
+    <topic>
+      <kind>NO_KEY</kind>
+      <name>rt/ap/offboard/cmd_path</name>
+      <dataType>ardupilot_msgs::msg::dds_::PathCommand_</dataType>
+    </topic>
+  </data_reader>
+  <topic profile_name="trajectorycommand__t">
+    <name>rt/ap/offboard/cmd_trajectory</name>
+    <dataType>ardupilot_msgs::msg::dds_::TrajectoryCommand_</dataType>
+    <historyQos>
+      <kind>KEEP_LAST</kind>
+      <depth>5</depth>
+    </historyQos>
+  </topic>
+  <data_reader profile_name="trajectorycommand__dr">
+    <topic>
+      <kind>NO_KEY</kind>
+      <name>rt/ap/offboard/cmd_trajectory</name>
+      <dataType>ardupilot_msgs::msg::dds_::TrajectoryCommand_</dataType>
+    </topic>
+  </data_reader>
+  <topic profile_name="safetyconstraints__t">
+    <name>rt/ap/offboard/safety_constraints</name>
+    <dataType>ardupilot_msgs::msg::dds_::OffboardSafetyConstraints_</dataType>
+    <historyQos>
+      <kind>KEEP_LAST</kind>
+      <depth>5</depth>
+    </historyQos>
+  </topic>
+  <data_reader profile_name="safetyconstraints__dr">
+    <topic>
+      <kind>NO_KEY</kind>
+      <name>rt/ap/offboard/safety_constraints</name>
+      <dataType>ardupilot_msgs::msg::dds_::OffboardSafetyConstraints_</dataType>
     </topic>
   </data_reader>
 </profiles>

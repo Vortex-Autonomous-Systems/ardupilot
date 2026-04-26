@@ -5,6 +5,14 @@
 #include "uxr/client/client.h"
 #include "ucdr/microcdr.h"
 
+#include "ardupilot_msgs/msg/OffboardHeartbeat.h"
+#include "ardupilot_msgs/msg/OffboardStatus.h"
+#include "ardupilot_msgs/msg/OffboardCommandResult.h"
+#include "ardupilot_msgs/msg/OffboardTrackingStatus.h"
+#include "ardupilot_msgs/msg/OffboardLocalizationStatus.h"
+#include "ardupilot_msgs/msg/PathCommand.h"
+#include "ardupilot_msgs/msg/TrajectoryCommand.h"
+#include "ardupilot_msgs/msg/OffboardSafetyConstraints.h"
 #include "ardupilot_msgs/msg/GlobalPosition.h"
 #include "builtin_interfaces/msg/Time.h"
 
@@ -60,6 +68,10 @@ private:
     geographic_msgs_msg_GeoPoseStamped geo_pose_topic;
     geometry_msgs_msg_PoseStamped local_pose_topic;
     geometry_msgs_msg_TwistStamped tx_local_velocity_topic;
+    ardupilot_msgs_msg_OffboardStatus offboard_status_topic;
+    ardupilot_msgs_msg_OffboardCommandResult offboard_cmd_result_topic;
+    ardupilot_msgs_msg_OffboardTrackingStatus offboard_tracking_topic;
+    ardupilot_msgs_msg_OffboardLocalizationStatus offboard_loc_status_topic;
     sensor_msgs_msg_BatteryState battery_state_topic;
     sensor_msgs_msg_NavSatFix nav_sat_fix_topic;
     rosgraph_msgs_msg_Clock clock_topic;
@@ -69,6 +81,14 @@ private:
     static geometry_msgs_msg_TwistStamped rx_velocity_control_topic;
     // incoming REP147 goal interface global position
     static ardupilot_msgs_msg_GlobalPosition rx_global_position_control_topic;
+    // incoming offboard heartbeat
+    static ardupilot_msgs_msg_OffboardHeartbeat rx_offboard_heartbeat_topic;
+    // incoming path command
+    static ardupilot_msgs_msg_PathCommand rx_path_command_topic;
+    // incoming trajectory command
+    static ardupilot_msgs_msg_TrajectoryCommand rx_trajectory_command_topic;
+    // incoming safety constraints
+    static ardupilot_msgs_msg_OffboardSafetyConstraints rx_safety_constraints_topic;
     // outgoing transforms
     tf2_msgs_msg_TFMessage tx_static_transforms_topic;
     // incoming transforms
@@ -88,6 +108,10 @@ private:
     static void update_topic(geometry_msgs_msg_TwistStamped& msg);
     static void update_topic(geographic_msgs_msg_GeoPoseStamped& msg);
     static void update_topic(rosgraph_msgs_msg_Clock& msg);
+    static bool update_topic(ardupilot_msgs_msg_OffboardStatus& msg) WARN_IF_UNUSED;
+    static bool update_topic(ardupilot_msgs_msg_OffboardCommandResult& msg) WARN_IF_UNUSED;
+    static bool update_topic(ardupilot_msgs_msg_OffboardTrackingStatus& msg) WARN_IF_UNUSED;
+    static bool update_topic(ardupilot_msgs_msg_OffboardLocalizationStatus& msg) WARN_IF_UNUSED;
 
     // subscription callback function
     static void on_topic_trampoline(uxrSession* session, uxrObjectId object_id, uint16_t request_id, uxrStreamId stream_id, struct ucdrBuffer* ub, uint16_t length, void* args);
@@ -119,6 +143,14 @@ private:
     uint64_t last_geo_pose_time_ms;
     // The last ms timestamp AP_DDS wrote a Clock message
     uint64_t last_clock_time_ms;
+    // The last ms timestamp AP_DDS wrote an OffboardStatus message
+    uint64_t last_offboard_status_time_ms;
+    // The last ms timestamp AP_DDS wrote OffboardCommandResult
+    uint64_t last_offboard_cmd_result_time_ms;
+    // The last ms timestamp AP_DDS wrote OffboardTrackingStatus
+    uint64_t last_offboard_tracking_time_ms;
+    // The last ms timestamp AP_DDS wrote OffboardLocalizationStatus
+    uint64_t last_offboard_loc_status_time_ms;
 
     // functions for serial transport
     bool ddsSerialInit();
@@ -189,6 +221,11 @@ public:
     void write_geo_pose_topic();
     //! @brief Serialize the current clock and publish to the IO stream(s)
     void write_clock_topic();
+    //! @brief Serialize the current offboard status and publish to the IO stream(s)
+    void write_offboard_status_topic();
+    void write_offboard_cmd_result_topic();
+    void write_offboard_tracking_topic();
+    void write_offboard_loc_status_topic();
     //! @brief Update the internally stored DDS messages with latest data
     void update();
 
@@ -232,5 +269,4 @@ public:
 };
 
 #endif // AP_DDS_ENABLED
-
 

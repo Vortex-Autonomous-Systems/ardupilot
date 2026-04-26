@@ -36,6 +36,10 @@ static constexpr uint16_t DELAY_LOCAL_POSE_TOPIC_MS = 33;
 static constexpr uint16_t DELAY_LOCAL_VELOCITY_TOPIC_MS = 33;
 static constexpr uint16_t DELAY_GEO_POSE_TOPIC_MS = 33;
 static constexpr uint16_t DELAY_CLOCK_TOPIC_MS = 10;
+static constexpr uint16_t DELAY_OFFBOARD_STATUS_TOPIC_MS = 100;
+static constexpr uint16_t DELAY_OFFBOARD_CMD_RESULT_TOPIC_MS = 100;
+static constexpr uint16_t DELAY_OFFBOARD_TRACKING_TOPIC_MS = 100;
+static constexpr uint16_t DELAY_OFFBOARD_LOC_STATUS_TOPIC_MS = 500;
 static constexpr uint16_t DELAY_PING_MS = 500;
 
 // Define the subscriber data members, which are static class scope.
@@ -45,6 +49,10 @@ sensor_msgs_msg_Joy AP_DDS_Client::rx_joy_topic {};
 tf2_msgs_msg_TFMessage AP_DDS_Client::rx_dynamic_transforms_topic {};
 geometry_msgs_msg_TwistStamped AP_DDS_Client::rx_velocity_control_topic {};
 ardupilot_msgs_msg_GlobalPosition AP_DDS_Client::rx_global_position_control_topic {};
+ardupilot_msgs_msg_OffboardHeartbeat AP_DDS_Client::rx_offboard_heartbeat_topic {};
+ardupilot_msgs_msg_PathCommand AP_DDS_Client::rx_path_command_topic {};
+ardupilot_msgs_msg_TrajectoryCommand AP_DDS_Client::rx_trajectory_command_topic {};
+ardupilot_msgs_msg_OffboardSafetyConstraints AP_DDS_Client::rx_safety_constraints_topic {};
 
 
 const AP_Param::GroupInfo AP_DDS_Client::var_info[] {
@@ -448,6 +456,46 @@ void AP_DDS_Client::update_topic(rosgraph_msgs_msg_Clock& msg)
     update_topic(msg.clock);
 }
 
+bool AP_DDS_Client::update_topic(ardupilot_msgs_msg_OffboardStatus& msg)
+{
+#if AP_EXTERNAL_CONTROL_ENABLED
+    return AP_DDS_External_Control::get_offboard_status(msg);
+#else
+    (void)msg;
+    return false;
+#endif
+}
+
+bool AP_DDS_Client::update_topic(ardupilot_msgs_msg_OffboardCommandResult& msg)
+{
+#if AP_EXTERNAL_CONTROL_ENABLED
+    return AP_DDS_External_Control::get_offboard_command_result(msg);
+#else
+    (void)msg;
+    return false;
+#endif
+}
+
+bool AP_DDS_Client::update_topic(ardupilot_msgs_msg_OffboardTrackingStatus& msg)
+{
+#if AP_EXTERNAL_CONTROL_ENABLED
+    return AP_DDS_External_Control::get_offboard_tracking_status(msg);
+#else
+    (void)msg;
+    return false;
+#endif
+}
+
+bool AP_DDS_Client::update_topic(ardupilot_msgs_msg_OffboardLocalizationStatus& msg)
+{
+#if AP_EXTERNAL_CONTROL_ENABLED
+    return AP_DDS_External_Control::get_offboard_localization_status(msg);
+#else
+    (void)msg;
+    return false;
+#endif
+}
+
 /*
   start the DDS thread
  */
@@ -544,6 +592,56 @@ void AP_DDS_Client::on_topic(uxrSession* uxr_session, uxrObjectId object_id, uin
         if (!AP_DDS_External_Control::handle_global_position_control(rx_global_position_control_topic)) {
             // TODO #23430 handle global position control failure through rosout, throttled.
         }
+#endif // AP_EXTERNAL_CONTROL_ENABLED
+        break;
+    }
+    case topics[to_underlying(TopicIndex::OFFBOARD_HEARTBEAT_SUB)].dr_id.id: {
+        const bool success = ardupilot_msgs_msg_OffboardHeartbeat_deserialize_topic(ub, &rx_offboard_heartbeat_topic);
+        if (success == false) {
+            break;
+        }
+
+#if AP_EXTERNAL_CONTROL_ENABLED
+        if (!AP_DDS_External_Control::handle_offboard_heartbeat(rx_offboard_heartbeat_topic)) {
+            // TODO handle offboard heartbeat failure through rosout, throttled.
+        }
+#endif // AP_EXTERNAL_CONTROL_ENABLED
+        break;
+    }
+    case topics[to_underlying(TopicIndex::PATH_COMMAND_SUB)].dr_id.id: {
+        const bool success = ardupilot_msgs_msg_PathCommand_deserialize_topic(ub, &rx_path_command_topic);
+        if (success == false) {
+            break;
+        }
+
+#if AP_EXTERNAL_CONTROL_ENABLED
+        if (!AP_DDS_External_Control::handle_path_command(rx_path_command_topic)) {
+            // TODO handle path command failure through rosout, throttled.
+        }
+#endif // AP_EXTERNAL_CONTROL_ENABLED
+        break;
+    }
+    case topics[to_underlying(TopicIndex::TRAJECTORY_COMMAND_SUB)].dr_id.id: {
+        const bool success = ardupilot_msgs_msg_TrajectoryCommand_deserialize_topic(ub, &rx_trajectory_command_topic);
+        if (success == false) {
+            break;
+        }
+
+#if AP_EXTERNAL_CONTROL_ENABLED
+        if (!AP_DDS_External_Control::handle_trajectory_command(rx_trajectory_command_topic)) {
+            // TODO handle trajectory command failure through rosout, throttled.
+        }
+#endif // AP_EXTERNAL_CONTROL_ENABLED
+        break;
+    }
+    case topics[to_underlying(TopicIndex::SAFETY_CONSTRAINTS_SUB)].dr_id.id: {
+        const bool success = ardupilot_msgs_msg_OffboardSafetyConstraints_deserialize_topic(ub, &rx_safety_constraints_topic);
+        if (success == false) {
+            break;
+        }
+
+#if AP_EXTERNAL_CONTROL_ENABLED
+        AP_DDS_External_Control::handle_safety_constraints(rx_safety_constraints_topic);
 #endif // AP_EXTERNAL_CONTROL_ENABLED
         break;
     }
@@ -1015,6 +1113,53 @@ void AP_DDS_Client::write_clock_topic()
     }
 }
 
+void AP_DDS_Client::write_offboard_status_topic()
+{
+    WITH_SEMAPHORE(csem);
+    if (connected) {
+        ucdrBuffer ub {};
+        const uint32_t topic_size = ardupilot_msgs_msg_OffboardStatus_size_of_topic(&offboard_status_topic, 0);
+        uxr_prepare_output_stream(&session, reliable_out, topics[to_underlying(TopicIndex::OFFBOARD_STATUS_PUB)].dw_id, &ub, topic_size);
+        const bool success = ardupilot_msgs_msg_OffboardStatus_serialize_topic(&ub, &offboard_status_topic);
+        if (!success) {
+            // TODO sometimes serialization fails on bootup. Determine why.
+        }
+    }
+}
+
+void AP_DDS_Client::write_offboard_cmd_result_topic()
+{
+    WITH_SEMAPHORE(csem);
+    if (connected) {
+        ucdrBuffer ub {};
+        const uint32_t topic_size = ardupilot_msgs_msg_OffboardCommandResult_size_of_topic(&offboard_cmd_result_topic, 0);
+        uxr_prepare_output_stream(&session, reliable_out, topics[to_underlying(TopicIndex::OFFBOARD_CMD_RESULT_PUB)].dw_id, &ub, topic_size);
+        ardupilot_msgs_msg_OffboardCommandResult_serialize_topic(&ub, &offboard_cmd_result_topic);
+    }
+}
+
+void AP_DDS_Client::write_offboard_tracking_topic()
+{
+    WITH_SEMAPHORE(csem);
+    if (connected) {
+        ucdrBuffer ub {};
+        const uint32_t topic_size = ardupilot_msgs_msg_OffboardTrackingStatus_size_of_topic(&offboard_tracking_topic, 0);
+        uxr_prepare_output_stream(&session, reliable_out, topics[to_underlying(TopicIndex::OFFBOARD_TRACKING_PUB)].dw_id, &ub, topic_size);
+        ardupilot_msgs_msg_OffboardTrackingStatus_serialize_topic(&ub, &offboard_tracking_topic);
+    }
+}
+
+void AP_DDS_Client::write_offboard_loc_status_topic()
+{
+    WITH_SEMAPHORE(csem);
+    if (connected) {
+        ucdrBuffer ub {};
+        const uint32_t topic_size = ardupilot_msgs_msg_OffboardLocalizationStatus_size_of_topic(&offboard_loc_status_topic, 0);
+        uxr_prepare_output_stream(&session, reliable_out, topics[to_underlying(TopicIndex::OFFBOARD_LOC_STATUS_PUB)].dw_id, &ub, topic_size);
+        ardupilot_msgs_msg_OffboardLocalizationStatus_serialize_topic(&ub, &offboard_loc_status_topic);
+    }
+}
+
 void AP_DDS_Client::update()
 {
     WITH_SEMAPHORE(csem);
@@ -1060,6 +1205,34 @@ void AP_DDS_Client::update()
         update_topic(clock_topic);
         last_clock_time_ms = cur_time_ms;
         write_clock_topic();
+    }
+
+    if (cur_time_ms - last_offboard_status_time_ms > DELAY_OFFBOARD_STATUS_TOPIC_MS) {
+        if (update_topic(offboard_status_topic)) {
+            last_offboard_status_time_ms = cur_time_ms;
+            write_offboard_status_topic();
+        }
+    }
+
+    if (cur_time_ms - last_offboard_cmd_result_time_ms > DELAY_OFFBOARD_CMD_RESULT_TOPIC_MS) {
+        if (update_topic(offboard_cmd_result_topic)) {
+            last_offboard_cmd_result_time_ms = cur_time_ms;
+            write_offboard_cmd_result_topic();
+        }
+    }
+
+    if (cur_time_ms - last_offboard_tracking_time_ms > DELAY_OFFBOARD_TRACKING_TOPIC_MS) {
+        if (update_topic(offboard_tracking_topic)) {
+            last_offboard_tracking_time_ms = cur_time_ms;
+            write_offboard_tracking_topic();
+        }
+    }
+
+    if (cur_time_ms - last_offboard_loc_status_time_ms > DELAY_OFFBOARD_LOC_STATUS_TOPIC_MS) {
+        if (update_topic(offboard_loc_status_topic)) {
+            last_offboard_loc_status_time_ms = cur_time_ms;
+            write_offboard_loc_status_topic();
+        }
     }
 
     status_ok = uxr_run_session_time(&session, 1);
