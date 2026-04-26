@@ -13,9 +13,11 @@ find_package(ament_cmake_python REQUIRED)
 # set(ARDUPILOT_VEHICLE "copter" CACHE STRING "Vehicle type")
 
 # NOTE: look for `waf` and set source and build directories to top level.
-# ${PROJECT_SOURCE_DIR} = ./Tools/ros2/ardupilot
-#
-cmake_path(SET ARDUPILOT_ROOT NORMALIZE ${PROJECT_SOURCE_DIR}/../../..)
+# ${PROJECT_SOURCE_DIR} is this package (Tools/ros2/ardupilot_sitl), which may
+# be symlinked into an external colcon workspace (e.g. ~/ros2_ws/src). Resolve
+# symlinks first so ../../../ reaches the real ArduPilot tree root.
+get_filename_component(_ardupilot_sitl_dir "${PROJECT_SOURCE_DIR}" REALPATH)
+get_filename_component(ARDUPILOT_ROOT "${_ardupilot_sitl_dir}/../../.." REALPATH)
 
 find_program(WAF_COMMAND waf HINTS ${ARDUPILOT_ROOT})
 message(STATUS "WAF_COMMAND: ${WAF_COMMAND}")
