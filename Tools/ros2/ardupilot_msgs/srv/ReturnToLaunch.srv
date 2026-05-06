@@ -1,0 +1,11 @@
+# Request to return to launch
+uint8 rtl_type                  # 0=RTL, 1=SmartRTL
+float32 return_alt_m            # Optional return altitude (0 = default)
+
+# RTL type constants
+uint8 TYPE_RTL=0
+uint8 TYPE_SMART_RTL=1
+---
+# Response
+bool success
+uint8 actual_mode               # Actual mode set

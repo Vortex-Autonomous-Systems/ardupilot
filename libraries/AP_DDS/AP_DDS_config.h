@@ -165,6 +165,130 @@
 #define AP_DDS_ARM_CHECK_SERVER_ENABLED 1
 #endif
 
+// =====================================================
+// Phase 3: RTL/Land Services
+// =====================================================
+
+#ifndef AP_DDS_LAND_SERVER_ENABLED
+#define AP_DDS_LAND_SERVER_ENABLED 1
+#endif
+
+#ifndef AP_DDS_RTL_SERVER_ENABLED
+#define AP_DDS_RTL_SERVER_ENABLED 1
+#endif
+
+#ifndef AP_DDS_SET_HOME_SERVER_ENABLED
+#define AP_DDS_SET_HOME_SERVER_ENABLED 1
+#endif
+
+// =====================================================
+// Phase 4: Servo/Actuator and Fence Control
+// =====================================================
+
+#ifndef AP_DDS_SERVO_CONTROL_SERVER_ENABLED
+#define AP_DDS_SERVO_CONTROL_SERVER_ENABLED 1
+#endif
+
+#include <AC_Fence/AC_Fence_config.h>
+#ifndef AP_DDS_FENCE_CONTROL_SERVER_ENABLED
+#define AP_DDS_FENCE_CONTROL_SERVER_ENABLED AP_FENCE_ENABLED
+#endif
+
+// =====================================================
+// Phase 1: Sensor Data Publishers
+// =====================================================
+
+// RangeFinder publisher support
+#include <AP_RangeFinder/AP_RangeFinder_config.h>
+#ifndef AP_DDS_RANGEFINDER_PUB_ENABLED
+#define AP_DDS_RANGEFINDER_PUB_ENABLED AP_RANGEFINDER_ENABLED
+#endif
+
+#ifndef AP_DDS_DELAY_RANGEFINDER_TOPIC_MS
+#define AP_DDS_DELAY_RANGEFINDER_TOPIC_MS 50
+#endif
+
+// Proximity sensor publisher support
+#include <AP_Proximity/AP_Proximity_config.h>
+#ifndef AP_DDS_PROXIMITY_PUB_ENABLED
+#define AP_DDS_PROXIMITY_PUB_ENABLED HAL_PROXIMITY_ENABLED
+#endif
+
+#ifndef AP_DDS_DELAY_PROXIMITY_TOPIC_MS
+#define AP_DDS_DELAY_PROXIMITY_TOPIC_MS 100
+#endif
+
+// Barometer publisher support
+#include <AP_Baro/AP_Baro_config.h>
+#ifndef AP_DDS_BAROMETER_PUB_ENABLED
+#define AP_DDS_BAROMETER_PUB_ENABLED AP_BARO_ENABLED
+#endif
+
+#ifndef AP_DDS_DELAY_BAROMETER_TOPIC_MS
+#define AP_DDS_DELAY_BAROMETER_TOPIC_MS 50
+#endif
+
+// Magnetometer publisher support
+#include <AP_Compass/AP_Compass_config.h>
+#ifndef AP_DDS_MAGNETOMETER_PUB_ENABLED
+#define AP_DDS_MAGNETOMETER_PUB_ENABLED AP_COMPASS_ENABLED
+#endif
+
+#ifndef AP_DDS_DELAY_MAGNETOMETER_TOPIC_MS
+#define AP_DDS_DELAY_MAGNETOMETER_TOPIC_MS 100
+#endif
+
+// OpticalFlow publisher support
+#include <AP_OpticalFlow/AP_OpticalFlow_config.h>
+#ifndef AP_DDS_OPTICALFLOW_PUB_ENABLED
+#define AP_DDS_OPTICALFLOW_PUB_ENABLED AP_OPTICALFLOW_ENABLED
+#endif
+
+#ifndef AP_DDS_DELAY_OPTICALFLOW_TOPIC_MS
+#define AP_DDS_DELAY_OPTICALFLOW_TOPIC_MS 50
+#endif
+
+// EKF Status publisher support
+#ifndef AP_DDS_EKFSTATUS_PUB_ENABLED
+#define AP_DDS_EKFSTATUS_PUB_ENABLED 1
+#endif
+
+#ifndef AP_DDS_DELAY_EKFSTATUS_TOPIC_MS
+#define AP_DDS_DELAY_EKFSTATUS_TOPIC_MS 100
+#endif
+
+// ServoOutputs publisher support
+#ifndef AP_DDS_SERVOOUTPUTS_PUB_ENABLED
+#define AP_DDS_SERVOOUTPUTS_PUB_ENABLED 1
+#endif
+
+#ifndef AP_DDS_DELAY_SERVOOUTPUTS_TOPIC_MS
+#define AP_DDS_DELAY_SERVOOUTPUTS_TOPIC_MS 50
+#endif
+
+// =====================================================
+// Phase 2: Guided Mode Extensions
+// =====================================================
+
+// Guided Target subscription support (position/velocity/acceleration control)
+#ifndef AP_DDS_GUIDED_TARGET_SUB_ENABLED
+#define AP_DDS_GUIDED_TARGET_SUB_ENABLED 1
+#endif
+
+// Attitude Target subscription support (quaternion/angular rate control)
+#ifndef AP_DDS_ATTITUDE_TARGET_SUB_ENABLED
+#define AP_DDS_ATTITUDE_TARGET_SUB_ENABLED 1
+#endif
+
+// Guided State publisher support
+#ifndef AP_DDS_GUIDED_STATE_PUB_ENABLED
+#define AP_DDS_GUIDED_STATE_PUB_ENABLED 1
+#endif
+
+#ifndef AP_DDS_DELAY_GUIDED_STATE_TOPIC_MS
+#define AP_DDS_DELAY_GUIDED_STATE_TOPIC_MS 100
+#endif
+
 // Whether to include Twist support
 #define AP_DDS_NEEDS_TWIST AP_DDS_VEL_CTRL_ENABLED || AP_DDS_LOCAL_VEL_PUB_ENABLED
 

@@ -1,0 +1,29 @@
+// generated from rosidl_adapter/resource/srv.idl.em
+// with input from ardupilot_msgs/srv/SetGuidedTarget.srv
+
+#include "ardupilot_msgs/msg/GuidedTarget.idl"
+
+module ardupilot_msgs {
+  module srv {
+    @verbatim (language="comment", text=
+      "Request to set a guided mode target. The vehicle must be armed and in GUIDED mode.")
+    struct SetGuidedTarget_Request {
+      ardupilot_msgs::msg::GuidedTarget target;
+    };
+
+    @verbatim (language="comment", text=
+      "Response containing success/failure status and result code.")
+    struct SetGuidedTarget_Response {
+      boolean success;
+      string message;
+      @verbatim (language="comment", text=
+        "Result codes:" "\n"
+        "0 = RESULT_SUCCESS" "\n"
+        "1 = RESULT_REJECTED_NOT_GUIDED" "\n"
+        "2 = RESULT_REJECTED_NOT_ARMED" "\n"
+        "3 = RESULT_REJECTED_FENCE" "\n"
+        "4 = RESULT_REJECTED_INVALID")
+      uint8 result_code;
+    };
+  };
+};

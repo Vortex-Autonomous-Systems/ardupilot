@@ -1,0 +1,35 @@
+// generated from rosidl_adapter/resource/msg.idl.em
+// with input from ardupilot_msgs/msg/AttitudeTarget.msg
+
+#include "geometry_msgs/msg/Quaternion.idl"
+#include "geometry_msgs/msg/Vector3.idl"
+#include "std_msgs/msg/Header.idl"
+
+module ardupilot_msgs {
+  module msg {
+    module AttitudeTarget_Constants {
+      const uint8 IGNORE_ROLL_RATE = 1;
+      const uint8 IGNORE_PITCH_RATE = 2;
+      const uint8 IGNORE_YAW_RATE = 4;
+      const uint8 IGNORE_THRUST = 8;
+      const uint8 IGNORE_ATTITUDE = 64;
+    };
+    @verbatim (language="comment", text=
+      "Direct attitude control message")
+    struct AttitudeTarget {
+      std_msgs::msg::Header header;
+
+      geometry_msgs::msg::Quaternion orientation;
+
+      geometry_msgs::msg::Vector3 body_rate;
+
+      float thrust_normalized;
+
+      float climb_rate_m_s;
+
+      boolean use_thrust;
+
+      uint8 type_mask;
+    };
+  };
+};

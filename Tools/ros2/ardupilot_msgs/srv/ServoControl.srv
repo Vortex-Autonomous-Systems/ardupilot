@@ -1,0 +1,7 @@
+# Request to control a servo channel
+uint8 channel              # Servo channel (0-15)
+uint16 pwm_value           # PWM value in microseconds
+uint16 timeout_ms          # Timeout in ms (0 = permanent)
+---
+# Response
+bool success

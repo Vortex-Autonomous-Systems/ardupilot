@@ -1,0 +1,6 @@
+# Request to enable/disable geofence
+bool enable               # True to enable, false to disable
+---
+# Response
+bool success
+uint8 fences_changed      # Bitmask of fences that were changed

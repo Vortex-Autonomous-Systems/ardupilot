@@ -1,0 +1,43 @@
+// generated from rosidl_adapter/resource/msg.idl.em
+// with input from ardupilot_msgs/msg/GuidedState.msg
+
+#include "geometry_msgs/msg/Point.idl"
+#include "geometry_msgs/msg/Vector3.idl"
+#include "std_msgs/msg/Header.idl"
+
+module ardupilot_msgs {
+  module msg {
+    module GuidedState_Constants {
+      const uint8 SUB_MODE_TAKEOFF = 0;
+      const uint8 SUB_MODE_WP = 1;
+      const uint8 SUB_MODE_POS = 2;
+      const uint8 SUB_MODE_VEL = 3;
+      const uint8 SUB_MODE_POSVEL = 4;
+      const uint8 SUB_MODE_POSVELACCEL = 5;
+      const uint8 SUB_MODE_ANGLE = 6;
+    };
+    @verbatim (language="comment", text=
+      "Current guided mode state and targets")
+    struct GuidedState {
+      std_msgs::msg::Header header;
+
+      uint8 sub_mode;
+
+      geometry_msgs::msg::Point target_position_ned_m;
+
+      geometry_msgs::msg::Vector3 target_velocity_ned_ms;
+
+      geometry_msgs::msg::Vector3 target_accel_ned_mss;
+
+      float target_yaw_rad;
+
+      boolean is_paused;
+
+      boolean has_valid_target;
+
+      float wp_distance_m;
+
+      float wp_bearing_deg;
+    };
+  };
+};

@@ -33,9 +33,44 @@ bool AP_ExternalControl_Copter::set_global_position(const Location& loc)
     return copter.set_target_location(loc);
 }
 
+bool AP_ExternalControl_Copter::set_position_velocity_accel_NED(
+    const Vector3p& pos_ned_m,
+    const Vector3f& vel_ned_ms,
+    const Vector3f& accel_ned_mss,
+    bool use_yaw, float yaw_rad,
+    bool use_yaw_rate, float yaw_rate_rads,
+    bool yaw_is_relative,
+    bool is_terrain_alt)
+{
+    if (!ready_for_external_control()) {
+        return false;
+    }
+    
+    return copter.mode_guided.set_pos_vel_accel_NED_m(
+        pos_ned_m, vel_ned_ms, accel_ned_mss,
+        use_yaw, yaw_rad,
+        use_yaw_rate, yaw_rate_rads,
+        yaw_is_relative);
+}
+
+bool AP_ExternalControl_Copter::set_attitude_target(
+    const Quaternion& att_quat,
+    const Vector3f& ang_vel_body,
+    float thrust_or_climb_rate,
+    bool use_thrust)
+{
+    if (!ready_for_external_control()) {
+        return false;
+    }
+    
+    copter.mode_guided.set_angle(att_quat, ang_vel_body, thrust_or_climb_rate, use_thrust);
+    return true;
+}
+
 bool AP_ExternalControl_Copter::ready_for_external_control()
 {
     return copter.flightmode->in_guided_mode() && copter.motors->armed();
 }
 
 #endif // AP_EXTERNAL_CONTROL_ENABLED
+

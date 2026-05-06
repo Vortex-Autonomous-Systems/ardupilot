@@ -1,0 +1,14 @@
+# One-shot guided mode target service
+
+# Request
+ardupilot_msgs/GuidedTarget target
+---
+# Response
+bool success
+string message
+uint8 result_code
+uint8 RESULT_SUCCESS = 0
+uint8 RESULT_REJECTED_NOT_GUIDED = 1
+uint8 RESULT_REJECTED_NOT_ARMED = 2
+uint8 RESULT_REJECTED_FENCE = 3
+uint8 RESULT_REJECTED_INVALID = 4

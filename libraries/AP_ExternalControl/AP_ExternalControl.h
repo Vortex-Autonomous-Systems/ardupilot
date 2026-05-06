@@ -50,6 +50,36 @@ public:
     */
     virtual bool disarm(AP_Arming::Method method, bool do_disarm_checks) WARN_IF_UNUSED;
 
+    /*
+        Set position, velocity, and acceleration target (NED frame).
+        For guided mode full PVA control.
+    */
+    virtual bool set_position_velocity_accel_NED(
+        const Vector3p& pos_ned_m,
+        const Vector3f& vel_ned_ms,
+        const Vector3f& accel_ned_mss,
+        bool use_yaw, float yaw_rad,
+        bool use_yaw_rate, float yaw_rate_rads,
+        bool yaw_is_relative,
+        bool is_terrain_alt) WARN_IF_UNUSED {
+        return false;
+    }
+
+    /*
+        Set attitude target for direct attitude control.
+        att_quat: Target attitude quaternion
+        ang_vel_body: Body-frame angular velocity [rad/s]
+        thrust_or_climb_rate: Thrust (-1 to 1) or climb rate (m/s)
+        use_thrust: If true, use thrust; if false, use climb rate
+    */
+    virtual bool set_attitude_target(
+        const Quaternion& att_quat,
+        const Vector3f& ang_vel_body,
+        float thrust_or_climb_rate,
+        bool use_thrust) WARN_IF_UNUSED {
+        return false;
+    }
+
     static AP_ExternalControl *get_singleton(void) WARN_IF_UNUSED {
         return singleton;
     }

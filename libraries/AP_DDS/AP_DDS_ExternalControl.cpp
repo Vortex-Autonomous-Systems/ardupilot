@@ -126,5 +126,95 @@ bool AP_DDS_External_Control::convert_alt_frame(const uint8_t frame_in,  Locatio
     return true;
 }
 
+#if AP_DDS_GUIDED_TARGET_SUB_ENABLED
+bool AP_DDS_External_Control::handle_guided_target(ardupilot_msgs_msg_GuidedTarget& msg)
+{
+    auto *external_control = AP::externalcontrol();
+    if (external_control == nullptr) {
+        return false;
+    }
+
+    // Convert from message frame to NED
+    Vector3p pos_ned_m;
+    Vector3f vel_ned_ms;
+    Vector3f accel_ned_mss;
+    float yaw_rad = msg.yaw_rad;
+    float yaw_rate_rads = msg.yaw_rate_rad_s;
+
+    // Frame constants from GuidedTarget message
+    constexpr uint8_t FRAME_LOCAL_ENU = 2;
+
+    if (msg.coordinate_frame == FRAME_LOCAL_ENU) {
+        // ENU to NED conversion: swap X/Y, negate Z
+        pos_ned_m = Vector3p(msg.position.y, msg.position.x, -msg.position.z);
+        vel_ned_ms = Vector3f(msg.velocity.y, msg.velocity.x, -msg.velocity.z);
+        accel_ned_mss = Vector3f(msg.acceleration.y, msg.acceleration.x, -msg.acceleration.z);
+        // ENU yaw to NED yaw: negate
+        yaw_rad = -yaw_rad;
+        yaw_rate_rads = -yaw_rate_rads;
+    } else {
+        // Assume NED frame
+        pos_ned_m = Vector3p(msg.position.x, msg.position.y, msg.position.z);
+        vel_ned_ms = Vector3f(msg.velocity.x, msg.velocity.y, msg.velocity.z);
+        accel_ned_mss = Vector3f(msg.acceleration.x, msg.acceleration.y, msg.acceleration.z);
+    }
+
+    // Zero out unused components based on flags
+    if (!msg.use_position) {
+        pos_ned_m.zero();
+    }
+    if (!msg.use_velocity) {
+        vel_ned_ms.zero();
+    }
+    if (!msg.use_acceleration) {
+        accel_ned_mss.zero();
+    }
+
+    return external_control->set_position_velocity_accel_NED(
+        pos_ned_m, vel_ned_ms, accel_ned_mss,
+        msg.use_yaw, yaw_rad,
+        msg.use_yaw_rate, yaw_rate_rads,
+        msg.yaw_is_relative,
+        msg.is_terrain_relative);
+}
+#endif // AP_DDS_GUIDED_TARGET_SUB_ENABLED
+
+#if AP_DDS_ATTITUDE_TARGET_SUB_ENABLED
+bool AP_DDS_External_Control::handle_attitude_target(ardupilot_msgs_msg_AttitudeTarget& msg)
+{
+    auto *external_control = AP::externalcontrol();
+    if (external_control == nullptr) {
+        return false;
+    }
+
+    // Convert quaternion from ROS (x, y, z, w) to ArduPilot Quaternion
+    Quaternion att_quat(
+        msg.orientation.w,
+        msg.orientation.x,
+        msg.orientation.y,
+        msg.orientation.z
+    );
+
+    // Body-frame angular velocity
+    Vector3f ang_vel_body(
+        msg.body_rate.x,
+        msg.body_rate.y,
+        msg.body_rate.z
+    );
+
+    // Determine thrust or climb rate
+    float thrust_or_climb_rate;
+    if (msg.use_thrust) {
+        thrust_or_climb_rate = msg.thrust_normalized;
+    } else {
+        thrust_or_climb_rate = msg.climb_rate_m_s;
+    }
+
+    return external_control->set_attitude_target(
+        att_quat, ang_vel_body,
+        thrust_or_climb_rate, msg.use_thrust);
+}
+#endif // AP_DDS_ATTITUDE_TARGET_SUB_ENABLED
+
 
 #endif // AP_DDS_ENABLED

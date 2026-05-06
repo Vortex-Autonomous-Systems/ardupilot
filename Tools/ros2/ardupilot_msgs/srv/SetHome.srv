@@ -1,0 +1,8 @@
+# Request to set home position
+float64 latitude                # Latitude in degrees
+float64 longitude               # Longitude in degrees
+float32 altitude_m              # Altitude in meters AMSL
+bool use_current                # If true, ignore lat/lon/alt and use current position
+---
+# Response
+bool success

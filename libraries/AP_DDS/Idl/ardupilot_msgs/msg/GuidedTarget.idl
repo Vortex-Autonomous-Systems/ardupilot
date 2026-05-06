@@ -1,0 +1,54 @@
+// generated from rosidl_adapter/resource/msg.idl.em
+// with input from ardupilot_msgs/msg/GuidedTarget.msg
+
+#include "geometry_msgs/msg/Point.idl"
+#include "geometry_msgs/msg/Vector3.idl"
+#include "std_msgs/msg/Header.idl"
+
+module ardupilot_msgs {
+  module msg {
+    module GuidedTarget_Constants {
+      const uint8 TARGET_TYPE_POSITION = 0;
+      const uint8 TARGET_TYPE_VELOCITY = 1;
+      const uint8 TARGET_TYPE_POS_VEL = 2;
+      const uint8 TARGET_TYPE_POS_VEL_ACCEL = 3;
+      const uint8 FRAME_LOCAL_NED = 1;
+      const uint8 FRAME_LOCAL_ENU = 2;
+      const uint8 FRAME_BODY_NED = 3;
+      const uint8 FRAME_BODY_FRD = 4;
+    };
+    @verbatim (language="comment", text=
+      "Unified guided mode setpoint message")
+    struct GuidedTarget {
+      std_msgs::msg::Header header;
+
+      uint8 target_type;
+
+      uint8 coordinate_frame;
+
+      geometry_msgs::msg::Point position;
+
+      boolean use_position;
+
+      geometry_msgs::msg::Vector3 velocity;
+
+      boolean use_velocity;
+
+      geometry_msgs::msg::Vector3 acceleration;
+
+      boolean use_acceleration;
+
+      float yaw_rad;
+
+      float yaw_rate_rad_s;
+
+      boolean use_yaw;
+
+      boolean use_yaw_rate;
+
+      boolean yaw_is_relative;
+
+      boolean is_terrain_relative;
+    };
+  };
+};

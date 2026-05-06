@@ -1,0 +1,19 @@
+// RangeFinder sensor message for DDS transport
+
+#include "std_msgs/msg/Header.idl"
+
+module ardupilot_msgs {
+  module msg {
+    @verbatim(language = "comment", text = "RangeFinder sensor data")
+    struct RangeFinder {
+      std_msgs::msg::Header header;
+      uint8 instance_id;
+      uint8 orientation;
+      float distance_m;
+      float min_distance_m;
+      float max_distance_m;
+      int8 signal_quality;
+      uint8 status;
+    };
+  };
+};

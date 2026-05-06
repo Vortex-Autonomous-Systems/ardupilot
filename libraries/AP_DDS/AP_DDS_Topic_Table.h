@@ -7,6 +7,36 @@
 #if AP_DDS_IMU_PUB_ENABLED
 #include "sensor_msgs/msg/Imu.h"
 #endif //AP_DDS_IMU_PUB_ENABLED
+#if AP_DDS_RANGEFINDER_PUB_ENABLED
+#include "ardupilot_msgs/msg/RangeFinder.h"
+#endif //AP_DDS_RANGEFINDER_PUB_ENABLED
+#if AP_DDS_PROXIMITY_PUB_ENABLED
+#include "ardupilot_msgs/msg/Proximity.h"
+#endif //AP_DDS_PROXIMITY_PUB_ENABLED
+#if AP_DDS_BAROMETER_PUB_ENABLED
+#include "ardupilot_msgs/msg/Barometer.h"
+#endif //AP_DDS_BAROMETER_PUB_ENABLED
+#if AP_DDS_MAGNETOMETER_PUB_ENABLED
+#include "ardupilot_msgs/msg/Magnetometer.h"
+#endif //AP_DDS_MAGNETOMETER_PUB_ENABLED
+#if AP_DDS_OPTICALFLOW_PUB_ENABLED
+#include "ardupilot_msgs/msg/OpticalFlow.h"
+#endif //AP_DDS_OPTICALFLOW_PUB_ENABLED
+#if AP_DDS_EKFSTATUS_PUB_ENABLED
+#include "ardupilot_msgs/msg/EKFStatus.h"
+#endif //AP_DDS_EKFSTATUS_PUB_ENABLED
+#if AP_DDS_SERVOOUTPUTS_PUB_ENABLED
+#include "ardupilot_msgs/msg/ServoOutputs.h"
+#endif //AP_DDS_SERVOOUTPUTS_PUB_ENABLED
+#if AP_DDS_GUIDED_TARGET_SUB_ENABLED
+#include "ardupilot_msgs/msg/GuidedTarget.h"
+#endif //AP_DDS_GUIDED_TARGET_SUB_ENABLED
+#if AP_DDS_ATTITUDE_TARGET_SUB_ENABLED
+#include "ardupilot_msgs/msg/AttitudeTarget.h"
+#endif //AP_DDS_ATTITUDE_TARGET_SUB_ENABLED
+#if AP_DDS_GUIDED_STATE_PUB_ENABLED
+#include "ardupilot_msgs/msg/GuidedState.h"
+#endif //AP_DDS_GUIDED_STATE_PUB_ENABLED
 
 #include "uxr/client/client.h"
 
@@ -57,6 +87,27 @@ enum class TopicIndex: uint8_t {
 #if AP_DDS_STATUS_PUB_ENABLED
     STATUS_PUB,
 #endif // AP_DDS_STATUS_PUB_ENABLED
+#if AP_DDS_RANGEFINDER_PUB_ENABLED
+    RANGEFINDER_PUB,
+#endif // AP_DDS_RANGEFINDER_PUB_ENABLED
+#if AP_DDS_PROXIMITY_PUB_ENABLED
+    PROXIMITY_PUB,
+#endif // AP_DDS_PROXIMITY_PUB_ENABLED
+#if AP_DDS_BAROMETER_PUB_ENABLED
+    BAROMETER_PUB,
+#endif // AP_DDS_BAROMETER_PUB_ENABLED
+#if AP_DDS_MAGNETOMETER_PUB_ENABLED
+    MAGNETOMETER_PUB,
+#endif // AP_DDS_MAGNETOMETER_PUB_ENABLED
+#if AP_DDS_OPTICALFLOW_PUB_ENABLED
+    OPTICALFLOW_PUB,
+#endif // AP_DDS_OPTICALFLOW_PUB_ENABLED
+#if AP_DDS_EKFSTATUS_PUB_ENABLED
+    EKFSTATUS_PUB,
+#endif // AP_DDS_EKFSTATUS_PUB_ENABLED
+#if AP_DDS_SERVOOUTPUTS_PUB_ENABLED
+    SERVOOUTPUTS_PUB,
+#endif // AP_DDS_SERVOOUTPUTS_PUB_ENABLED
 #if AP_DDS_JOY_SUB_ENABLED
     JOY_SUB,
 #endif // AP_DDS_JOY_SUB_ENABLED
@@ -69,6 +120,15 @@ enum class TopicIndex: uint8_t {
 #if AP_DDS_GLOBAL_POS_CTRL_ENABLED
     GLOBAL_POSITION_SUB,
 #endif // AP_DDS_GLOBAL_POS_CTRL_ENABLED
+#if AP_DDS_GUIDED_TARGET_SUB_ENABLED
+    GUIDED_TARGET_SUB,
+#endif // AP_DDS_GUIDED_TARGET_SUB_ENABLED
+#if AP_DDS_ATTITUDE_TARGET_SUB_ENABLED
+    ATTITUDE_TARGET_SUB,
+#endif // AP_DDS_ATTITUDE_TARGET_SUB_ENABLED
+#if AP_DDS_GUIDED_STATE_PUB_ENABLED
+    GUIDED_STATE_PUB,
+#endif // AP_DDS_GUIDED_STATE_PUB_ENABLED
 };
 
 static inline constexpr uint8_t to_underlying(const TopicIndex index)
@@ -331,6 +391,132 @@ constexpr struct AP_DDS_Client::Topic_table AP_DDS_Client::topics[] = {
         },
     },
 #endif // AP_DDS_STATUS_PUB_ENABLED
+#if AP_DDS_RANGEFINDER_PUB_ENABLED
+    {
+        .topic_id = to_underlying(TopicIndex::RANGEFINDER_PUB),
+        .pub_id = to_underlying(TopicIndex::RANGEFINDER_PUB),
+        .sub_id = to_underlying(TopicIndex::RANGEFINDER_PUB),
+        .dw_id = uxrObjectId{.id=to_underlying(TopicIndex::RANGEFINDER_PUB), .type=UXR_DATAWRITER_ID},
+        .dr_id = uxrObjectId{.id=to_underlying(TopicIndex::RANGEFINDER_PUB), .type=UXR_DATAREADER_ID},
+        .topic_rw = Topic_rw::DataWriter,
+        .topic_name = "rt/ap/rangefinder",
+        .type_name = "ardupilot_msgs::msg::dds_::RangeFinder_",
+        .qos = {
+            .durability = UXR_DURABILITY_VOLATILE,
+            .reliability = UXR_RELIABILITY_BEST_EFFORT,
+            .history = UXR_HISTORY_KEEP_LAST,
+            .depth = 5,
+        },
+    },
+#endif // AP_DDS_RANGEFINDER_PUB_ENABLED
+#if AP_DDS_PROXIMITY_PUB_ENABLED
+    {
+        .topic_id = to_underlying(TopicIndex::PROXIMITY_PUB),
+        .pub_id = to_underlying(TopicIndex::PROXIMITY_PUB),
+        .sub_id = to_underlying(TopicIndex::PROXIMITY_PUB),
+        .dw_id = uxrObjectId{.id=to_underlying(TopicIndex::PROXIMITY_PUB), .type=UXR_DATAWRITER_ID},
+        .dr_id = uxrObjectId{.id=to_underlying(TopicIndex::PROXIMITY_PUB), .type=UXR_DATAREADER_ID},
+        .topic_rw = Topic_rw::DataWriter,
+        .topic_name = "rt/ap/proximity",
+        .type_name = "ardupilot_msgs::msg::dds_::Proximity_",
+        .qos = {
+            .durability = UXR_DURABILITY_VOLATILE,
+            .reliability = UXR_RELIABILITY_BEST_EFFORT,
+            .history = UXR_HISTORY_KEEP_LAST,
+            .depth = 5,
+        },
+    },
+#endif // AP_DDS_PROXIMITY_PUB_ENABLED
+#if AP_DDS_BAROMETER_PUB_ENABLED
+    {
+        .topic_id = to_underlying(TopicIndex::BAROMETER_PUB),
+        .pub_id = to_underlying(TopicIndex::BAROMETER_PUB),
+        .sub_id = to_underlying(TopicIndex::BAROMETER_PUB),
+        .dw_id = uxrObjectId{.id=to_underlying(TopicIndex::BAROMETER_PUB), .type=UXR_DATAWRITER_ID},
+        .dr_id = uxrObjectId{.id=to_underlying(TopicIndex::BAROMETER_PUB), .type=UXR_DATAREADER_ID},
+        .topic_rw = Topic_rw::DataWriter,
+        .topic_name = "rt/ap/barometer",
+        .type_name = "ardupilot_msgs::msg::dds_::Barometer_",
+        .qos = {
+            .durability = UXR_DURABILITY_VOLATILE,
+            .reliability = UXR_RELIABILITY_BEST_EFFORT,
+            .history = UXR_HISTORY_KEEP_LAST,
+            .depth = 5,
+        },
+    },
+#endif // AP_DDS_BAROMETER_PUB_ENABLED
+#if AP_DDS_MAGNETOMETER_PUB_ENABLED
+    {
+        .topic_id = to_underlying(TopicIndex::MAGNETOMETER_PUB),
+        .pub_id = to_underlying(TopicIndex::MAGNETOMETER_PUB),
+        .sub_id = to_underlying(TopicIndex::MAGNETOMETER_PUB),
+        .dw_id = uxrObjectId{.id=to_underlying(TopicIndex::MAGNETOMETER_PUB), .type=UXR_DATAWRITER_ID},
+        .dr_id = uxrObjectId{.id=to_underlying(TopicIndex::MAGNETOMETER_PUB), .type=UXR_DATAREADER_ID},
+        .topic_rw = Topic_rw::DataWriter,
+        .topic_name = "rt/ap/magnetometer",
+        .type_name = "ardupilot_msgs::msg::dds_::Magnetometer_",
+        .qos = {
+            .durability = UXR_DURABILITY_VOLATILE,
+            .reliability = UXR_RELIABILITY_BEST_EFFORT,
+            .history = UXR_HISTORY_KEEP_LAST,
+            .depth = 5,
+        },
+    },
+#endif // AP_DDS_MAGNETOMETER_PUB_ENABLED
+#if AP_DDS_OPTICALFLOW_PUB_ENABLED
+    {
+        .topic_id = to_underlying(TopicIndex::OPTICALFLOW_PUB),
+        .pub_id = to_underlying(TopicIndex::OPTICALFLOW_PUB),
+        .sub_id = to_underlying(TopicIndex::OPTICALFLOW_PUB),
+        .dw_id = uxrObjectId{.id=to_underlying(TopicIndex::OPTICALFLOW_PUB), .type=UXR_DATAWRITER_ID},
+        .dr_id = uxrObjectId{.id=to_underlying(TopicIndex::OPTICALFLOW_PUB), .type=UXR_DATAREADER_ID},
+        .topic_rw = Topic_rw::DataWriter,
+        .topic_name = "rt/ap/opticalflow",
+        .type_name = "ardupilot_msgs::msg::dds_::OpticalFlow_",
+        .qos = {
+            .durability = UXR_DURABILITY_VOLATILE,
+            .reliability = UXR_RELIABILITY_BEST_EFFORT,
+            .history = UXR_HISTORY_KEEP_LAST,
+            .depth = 5,
+        },
+    },
+#endif // AP_DDS_OPTICALFLOW_PUB_ENABLED
+#if AP_DDS_EKFSTATUS_PUB_ENABLED
+    {
+        .topic_id = to_underlying(TopicIndex::EKFSTATUS_PUB),
+        .pub_id = to_underlying(TopicIndex::EKFSTATUS_PUB),
+        .sub_id = to_underlying(TopicIndex::EKFSTATUS_PUB),
+        .dw_id = uxrObjectId{.id=to_underlying(TopicIndex::EKFSTATUS_PUB), .type=UXR_DATAWRITER_ID},
+        .dr_id = uxrObjectId{.id=to_underlying(TopicIndex::EKFSTATUS_PUB), .type=UXR_DATAREADER_ID},
+        .topic_rw = Topic_rw::DataWriter,
+        .topic_name = "rt/ap/ekf_status",
+        .type_name = "ardupilot_msgs::msg::dds_::EKFStatus_",
+        .qos = {
+            .durability = UXR_DURABILITY_VOLATILE,
+            .reliability = UXR_RELIABILITY_BEST_EFFORT,
+            .history = UXR_HISTORY_KEEP_LAST,
+            .depth = 5,
+        },
+    },
+#endif // AP_DDS_EKFSTATUS_PUB_ENABLED
+#if AP_DDS_SERVOOUTPUTS_PUB_ENABLED
+    {
+        .topic_id = to_underlying(TopicIndex::SERVOOUTPUTS_PUB),
+        .pub_id = to_underlying(TopicIndex::SERVOOUTPUTS_PUB),
+        .sub_id = to_underlying(TopicIndex::SERVOOUTPUTS_PUB),
+        .dw_id = uxrObjectId{.id=to_underlying(TopicIndex::SERVOOUTPUTS_PUB), .type=UXR_DATAWRITER_ID},
+        .dr_id = uxrObjectId{.id=to_underlying(TopicIndex::SERVOOUTPUTS_PUB), .type=UXR_DATAREADER_ID},
+        .topic_rw = Topic_rw::DataWriter,
+        .topic_name = "rt/ap/servo_outputs",
+        .type_name = "ardupilot_msgs::msg::dds_::ServoOutputs_",
+        .qos = {
+            .durability = UXR_DURABILITY_VOLATILE,
+            .reliability = UXR_RELIABILITY_BEST_EFFORT,
+            .history = UXR_HISTORY_KEEP_LAST,
+            .depth = 5,
+        },
+    },
+#endif // AP_DDS_SERVOOUTPUTS_PUB_ENABLED
 #if AP_DDS_JOY_SUB_ENABLED
     {
         .topic_id = to_underlying(TopicIndex::JOY_SUB),
@@ -403,4 +589,58 @@ constexpr struct AP_DDS_Client::Topic_table AP_DDS_Client::topics[] = {
         },
     },
 #endif // AP_DDS_GLOBAL_POS_CTRL_ENABLED
+#if AP_DDS_GUIDED_TARGET_SUB_ENABLED
+    {
+        .topic_id = to_underlying(TopicIndex::GUIDED_TARGET_SUB),
+        .pub_id = to_underlying(TopicIndex::GUIDED_TARGET_SUB),
+        .sub_id = to_underlying(TopicIndex::GUIDED_TARGET_SUB),
+        .dw_id = uxrObjectId{.id=to_underlying(TopicIndex::GUIDED_TARGET_SUB), .type=UXR_DATAWRITER_ID},
+        .dr_id = uxrObjectId{.id=to_underlying(TopicIndex::GUIDED_TARGET_SUB), .type=UXR_DATAREADER_ID},
+        .topic_rw = Topic_rw::DataReader,
+        .topic_name = "rt/ap/cmd_guided_target",
+        .type_name = "ardupilot_msgs::msg::dds_::GuidedTarget_",
+        .qos = {
+            .durability = UXR_DURABILITY_VOLATILE,
+            .reliability = UXR_RELIABILITY_BEST_EFFORT,
+            .history = UXR_HISTORY_KEEP_LAST,
+            .depth = 5,
+        },
+    },
+#endif // AP_DDS_GUIDED_TARGET_SUB_ENABLED
+#if AP_DDS_ATTITUDE_TARGET_SUB_ENABLED
+    {
+        .topic_id = to_underlying(TopicIndex::ATTITUDE_TARGET_SUB),
+        .pub_id = to_underlying(TopicIndex::ATTITUDE_TARGET_SUB),
+        .sub_id = to_underlying(TopicIndex::ATTITUDE_TARGET_SUB),
+        .dw_id = uxrObjectId{.id=to_underlying(TopicIndex::ATTITUDE_TARGET_SUB), .type=UXR_DATAWRITER_ID},
+        .dr_id = uxrObjectId{.id=to_underlying(TopicIndex::ATTITUDE_TARGET_SUB), .type=UXR_DATAREADER_ID},
+        .topic_rw = Topic_rw::DataReader,
+        .topic_name = "rt/ap/cmd_attitude",
+        .type_name = "ardupilot_msgs::msg::dds_::AttitudeTarget_",
+        .qos = {
+            .durability = UXR_DURABILITY_VOLATILE,
+            .reliability = UXR_RELIABILITY_BEST_EFFORT,
+            .history = UXR_HISTORY_KEEP_LAST,
+            .depth = 5,
+        },
+    },
+#endif // AP_DDS_ATTITUDE_TARGET_SUB_ENABLED
+#if AP_DDS_GUIDED_STATE_PUB_ENABLED
+    {
+        .topic_id = to_underlying(TopicIndex::GUIDED_STATE_PUB),
+        .pub_id = to_underlying(TopicIndex::GUIDED_STATE_PUB),
+        .sub_id = to_underlying(TopicIndex::GUIDED_STATE_PUB),
+        .dw_id = uxrObjectId{.id=to_underlying(TopicIndex::GUIDED_STATE_PUB), .type=UXR_DATAWRITER_ID},
+        .dr_id = uxrObjectId{.id=to_underlying(TopicIndex::GUIDED_STATE_PUB), .type=UXR_DATAREADER_ID},
+        .topic_rw = Topic_rw::DataWriter,
+        .topic_name = "rt/ap/guided_state",
+        .type_name = "ardupilot_msgs::msg::dds_::GuidedState_",
+        .qos = {
+            .durability = UXR_DURABILITY_VOLATILE,
+            .reliability = UXR_RELIABILITY_BEST_EFFORT,
+            .history = UXR_HISTORY_KEEP_LAST,
+            .depth = 5,
+        },
+    },
+#endif // AP_DDS_GUIDED_STATE_PUB_ENABLED
 };

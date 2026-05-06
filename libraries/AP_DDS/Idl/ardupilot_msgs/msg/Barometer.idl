@@ -1,0 +1,20 @@
+// Barometer sensor message for DDS transport
+
+#include "std_msgs/msg/Header.idl"
+
+module ardupilot_msgs {
+  module msg {
+    @verbatim(language = "comment", text = "Barometer sensor data")
+    struct Barometer {
+      std_msgs::msg::Header header;
+      uint8 instance_id;
+      float pressure_pa;
+      float temperature_c;
+      float altitude_m;
+      float altitude_amsl_m;
+      float climb_rate_ms;
+      boolean healthy;
+      boolean is_primary;
+    };
+  };
+};

@@ -16,8 +16,23 @@ enum class ServiceIndex: uint8_t {
 #endif // AP_DDS_VTOL_TAKEOFF_SERVER_ENABLED
 #if AP_DDS_PARAMETER_SERVER_ENABLED
     SET_PARAMETERS,
-    GET_PARAMETERS
+    GET_PARAMETERS,
 #endif // AP_DDS_PARAMETER_SERVER_ENABLED
+#if AP_DDS_LAND_SERVER_ENABLED
+    LAND,
+#endif // AP_DDS_LAND_SERVER_ENABLED
+#if AP_DDS_RTL_SERVER_ENABLED
+    RTL,
+#endif // AP_DDS_RTL_SERVER_ENABLED
+#if AP_DDS_SET_HOME_SERVER_ENABLED
+    SET_HOME,
+#endif // AP_DDS_SET_HOME_SERVER_ENABLED
+#if AP_DDS_SERVO_CONTROL_SERVER_ENABLED
+    SERVO_CONTROL,
+#endif // AP_DDS_SERVO_CONTROL_SERVER_ENABLED
+#if AP_DDS_FENCE_CONTROL_SERVER_ENABLED
+    FENCE_CONTROL,
+#endif // AP_DDS_FENCE_CONTROL_SERVER_ENABLED
 };
 
 static inline constexpr uint8_t to_underlying(const ServiceIndex index)
@@ -103,4 +118,64 @@ constexpr struct AP_DDS_Client::Service_table AP_DDS_Client::services[] = {
         .reply_topic_name = "rr/ap/get_parametersReply",
     },
 #endif // AP_DDS_PARAMETER_SERVER_ENABLED
+#if AP_DDS_LAND_SERVER_ENABLED
+    {
+        .req_id = to_underlying(ServiceIndex::LAND),
+        .rep_id = to_underlying(ServiceIndex::LAND),
+        .service_rr = Service_rr::Replier,
+        .service_name = "rs/ap/landService",
+        .request_type = "ardupilot_msgs::srv::dds_::Land_Request_",
+        .reply_type = "ardupilot_msgs::srv::dds_::Land_Response_",
+        .request_topic_name = "rq/ap/landRequest",
+        .reply_topic_name = "rr/ap/landReply",
+    },
+#endif // AP_DDS_LAND_SERVER_ENABLED
+#if AP_DDS_RTL_SERVER_ENABLED
+    {
+        .req_id = to_underlying(ServiceIndex::RTL),
+        .rep_id = to_underlying(ServiceIndex::RTL),
+        .service_rr = Service_rr::Replier,
+        .service_name = "rs/ap/rtlService",
+        .request_type = "ardupilot_msgs::srv::dds_::ReturnToLaunch_Request_",
+        .reply_type = "ardupilot_msgs::srv::dds_::ReturnToLaunch_Response_",
+        .request_topic_name = "rq/ap/rtlRequest",
+        .reply_topic_name = "rr/ap/rtlReply",
+    },
+#endif // AP_DDS_RTL_SERVER_ENABLED
+#if AP_DDS_SET_HOME_SERVER_ENABLED
+    {
+        .req_id = to_underlying(ServiceIndex::SET_HOME),
+        .rep_id = to_underlying(ServiceIndex::SET_HOME),
+        .service_rr = Service_rr::Replier,
+        .service_name = "rs/ap/set_homeService",
+        .request_type = "ardupilot_msgs::srv::dds_::SetHome_Request_",
+        .reply_type = "ardupilot_msgs::srv::dds_::SetHome_Response_",
+        .request_topic_name = "rq/ap/set_homeRequest",
+        .reply_topic_name = "rr/ap/set_homeReply",
+    },
+#endif // AP_DDS_SET_HOME_SERVER_ENABLED
+#if AP_DDS_SERVO_CONTROL_SERVER_ENABLED
+    {
+        .req_id = to_underlying(ServiceIndex::SERVO_CONTROL),
+        .rep_id = to_underlying(ServiceIndex::SERVO_CONTROL),
+        .service_rr = Service_rr::Replier,
+        .service_name = "rs/ap/servo_controlService",
+        .request_type = "ardupilot_msgs::srv::dds_::ServoControl_Request_",
+        .reply_type = "ardupilot_msgs::srv::dds_::ServoControl_Response_",
+        .request_topic_name = "rq/ap/servo_controlRequest",
+        .reply_topic_name = "rr/ap/servo_controlReply",
+    },
+#endif // AP_DDS_SERVO_CONTROL_SERVER_ENABLED
+#if AP_DDS_FENCE_CONTROL_SERVER_ENABLED
+    {
+        .req_id = to_underlying(ServiceIndex::FENCE_CONTROL),
+        .rep_id = to_underlying(ServiceIndex::FENCE_CONTROL),
+        .service_rr = Service_rr::Replier,
+        .service_name = "rs/ap/fence_controlService",
+        .request_type = "ardupilot_msgs::srv::dds_::FenceControl_Request_",
+        .reply_type = "ardupilot_msgs::srv::dds_::FenceControl_Response_",
+        .request_topic_name = "rq/ap/fence_controlRequest",
+        .reply_topic_name = "rr/ap/fence_controlReply",
+    },
+#endif // AP_DDS_FENCE_CONTROL_SERVER_ENABLED
 };

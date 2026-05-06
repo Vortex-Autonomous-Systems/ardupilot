@@ -61,6 +61,33 @@
 #include "rcl_interfaces/msg/ParameterType.h"
 #include "rcl_interfaces/srv/GetParameters.h"
 #endif //AP_DDS_PARAMETER_SERVER_ENABLED
+#if AP_DDS_GUIDED_TARGET_SUB_ENABLED
+#include "ardupilot_msgs/msg/GuidedTarget.h"
+#endif //AP_DDS_GUIDED_TARGET_SUB_ENABLED
+#if AP_DDS_ATTITUDE_TARGET_SUB_ENABLED
+#include "ardupilot_msgs/msg/AttitudeTarget.h"
+#endif //AP_DDS_ATTITUDE_TARGET_SUB_ENABLED
+#if AP_DDS_RANGEFINDER_PUB_ENABLED
+#include "ardupilot_msgs/msg/RangeFinder.h"
+#endif //AP_DDS_RANGEFINDER_PUB_ENABLED
+#if AP_DDS_PROXIMITY_PUB_ENABLED
+#include "ardupilot_msgs/msg/Proximity.h"
+#endif //AP_DDS_PROXIMITY_PUB_ENABLED
+#if AP_DDS_BAROMETER_PUB_ENABLED
+#include "ardupilot_msgs/msg/Barometer.h"
+#endif //AP_DDS_BAROMETER_PUB_ENABLED
+#if AP_DDS_MAGNETOMETER_PUB_ENABLED
+#include "ardupilot_msgs/msg/Magnetometer.h"
+#endif //AP_DDS_MAGNETOMETER_PUB_ENABLED
+#if AP_DDS_OPTICALFLOW_PUB_ENABLED
+#include "ardupilot_msgs/msg/OpticalFlow.h"
+#endif //AP_DDS_OPTICALFLOW_PUB_ENABLED
+#if AP_DDS_EKFSTATUS_PUB_ENABLED
+#include "ardupilot_msgs/msg/EKFStatus.h"
+#endif //AP_DDS_EKFSTATUS_PUB_ENABLED
+#if AP_DDS_SERVOOUTPUTS_PUB_ENABLED
+#include "ardupilot_msgs/msg/ServoOutputs.h"
+#endif //AP_DDS_SERVOOUTPUTS_PUB_ENABLED
 
 #include <AP_HAL/AP_HAL.h>
 #include <AP_HAL/Scheduler.h>
@@ -221,6 +248,55 @@ private:
     void write_status_topic();
 #endif // AP_DDS_STATUS_PUB_ENABLED
 
+#if AP_DDS_RANGEFINDER_PUB_ENABLED
+    ardupilot_msgs_msg_RangeFinder rangefinder_topic;
+    uint64_t last_rangefinder_time_ms;
+    void write_rangefinder_topic();
+    bool update_topic(ardupilot_msgs_msg_RangeFinder& msg, const uint8_t instance);
+#endif // AP_DDS_RANGEFINDER_PUB_ENABLED
+
+#if AP_DDS_PROXIMITY_PUB_ENABLED
+    ardupilot_msgs_msg_Proximity proximity_topic;
+    uint64_t last_proximity_time_ms;
+    void write_proximity_topic();
+    bool update_topic(ardupilot_msgs_msg_Proximity& msg, const uint8_t instance);
+#endif // AP_DDS_PROXIMITY_PUB_ENABLED
+
+#if AP_DDS_BAROMETER_PUB_ENABLED
+    ardupilot_msgs_msg_Barometer barometer_topic;
+    uint64_t last_barometer_time_ms;
+    void write_barometer_topic();
+    bool update_topic(ardupilot_msgs_msg_Barometer& msg, const uint8_t instance);
+#endif // AP_DDS_BAROMETER_PUB_ENABLED
+
+#if AP_DDS_MAGNETOMETER_PUB_ENABLED
+    ardupilot_msgs_msg_Magnetometer magnetometer_topic;
+    uint64_t last_magnetometer_time_ms;
+    void write_magnetometer_topic();
+    bool update_topic(ardupilot_msgs_msg_Magnetometer& msg, const uint8_t instance);
+#endif // AP_DDS_MAGNETOMETER_PUB_ENABLED
+
+#if AP_DDS_OPTICALFLOW_PUB_ENABLED
+    ardupilot_msgs_msg_OpticalFlow opticalflow_topic;
+    uint64_t last_opticalflow_time_ms;
+    void write_opticalflow_topic();
+    bool update_topic(ardupilot_msgs_msg_OpticalFlow& msg);
+#endif // AP_DDS_OPTICALFLOW_PUB_ENABLED
+
+#if AP_DDS_EKFSTATUS_PUB_ENABLED
+    ardupilot_msgs_msg_EKFStatus ekfstatus_topic;
+    uint64_t last_ekfstatus_time_ms;
+    void write_ekfstatus_topic();
+    void update_topic(ardupilot_msgs_msg_EKFStatus& msg);
+#endif // AP_DDS_EKFSTATUS_PUB_ENABLED
+
+#if AP_DDS_SERVOOUTPUTS_PUB_ENABLED
+    ardupilot_msgs_msg_ServoOutputs servooutputs_topic;
+    uint64_t last_servooutputs_time_ms;
+    void write_servooutputs_topic();
+    void update_topic(ardupilot_msgs_msg_ServoOutputs& msg);
+#endif // AP_DDS_SERVOOUTPUTS_PUB_ENABLED
+
 #if AP_DDS_STATIC_TF_PUB_ENABLED
     // outgoing transforms
     tf2_msgs_msg_TFMessage tx_static_transforms_topic;
@@ -241,6 +317,14 @@ private:
     // incoming REP147 goal interface global position
     static ardupilot_msgs_msg_GlobalPosition rx_global_position_control_topic;
 #endif // AP_DDS_GLOBAL_POS_CTRL_ENABLED
+#if AP_DDS_GUIDED_TARGET_SUB_ENABLED
+    // incoming guided target (position/velocity/acceleration control)
+    static ardupilot_msgs_msg_GuidedTarget rx_guided_target_topic;
+#endif // AP_DDS_GUIDED_TARGET_SUB_ENABLED
+#if AP_DDS_ATTITUDE_TARGET_SUB_ENABLED
+    // incoming attitude target (quaternion/angular rate control)
+    static ardupilot_msgs_msg_AttitudeTarget rx_attitude_target_topic;
+#endif // AP_DDS_ATTITUDE_TARGET_SUB_ENABLED
 #if AP_DDS_DYNAMIC_TF_SUB_ENABLED
     // incoming transforms
     static tf2_msgs_msg_TFMessage rx_dynamic_transforms_topic;

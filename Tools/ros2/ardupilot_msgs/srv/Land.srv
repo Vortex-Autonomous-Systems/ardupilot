@@ -1,0 +1,6 @@
+# Request to land the vehicle
+float32 descent_rate_ms         # Optional descent rate (0 = default)
+---
+# Response
+bool success
+uint8 curr_mode                 # Actual mode set

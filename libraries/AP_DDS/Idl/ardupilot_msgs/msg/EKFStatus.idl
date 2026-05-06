@@ -1,0 +1,27 @@
+// EKF Status message for DDS transport
+
+#include "std_msgs/msg/Header.idl"
+
+module ardupilot_msgs {
+  module msg {
+    @verbatim(language = "comment", text = "EKF status and variance data")
+    struct EKFStatus {
+      std_msgs::msg::Header header;
+      uint8 ekf_type;
+      uint8 active_lane;
+      boolean is_healthy;
+      boolean attitude_ok;
+      boolean velocity_horiz_ok;
+      boolean velocity_vert_ok;
+      boolean position_horiz_ok;
+      boolean position_vert_ok;
+      boolean compass_ok;
+      boolean terrain_ok;
+      float velocity_variance;
+      float pos_horiz_variance;
+      float pos_vert_variance;
+      float compass_variance;
+      float terrain_variance;
+    };
+  };
+};

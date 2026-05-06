@@ -34,9 +34,48 @@
 #if AP_DDS_VTOL_TAKEOFF_SERVER_ENABLED
 #include "ardupilot_msgs/srv/Takeoff.h"
 #endif // AP_DDS_VTOL_TAKEOFF_SERVER_ENABLED
+#if AP_DDS_LAND_SERVER_ENABLED
+#include "ardupilot_msgs/srv/Land.h"
+#endif // AP_DDS_LAND_SERVER_ENABLED
+#if AP_DDS_RTL_SERVER_ENABLED
+#include "ardupilot_msgs/srv/ReturnToLaunch.h"
+#endif // AP_DDS_RTL_SERVER_ENABLED
+#if AP_DDS_SET_HOME_SERVER_ENABLED
+#include "ardupilot_msgs/srv/SetHome.h"
+#endif // AP_DDS_SET_HOME_SERVER_ENABLED
+#if AP_DDS_SERVO_CONTROL_SERVER_ENABLED
+#include "ardupilot_msgs/srv/ServoControl.h"
+#endif // AP_DDS_SERVO_CONTROL_SERVER_ENABLED
+#if AP_DDS_FENCE_CONTROL_SERVER_ENABLED
+#include "ardupilot_msgs/srv/FenceControl.h"
+#include <AC_Fence/AC_Fence.h>
+#endif // AP_DDS_FENCE_CONTROL_SERVER_ENABLED
 #if AP_DDS_RC_PUB_ENABLED
 #include "AP_RSSI/AP_RSSI.h"
 #endif // AP_DDS_RC_PUB_ENABLED
+
+#if AP_DDS_RANGEFINDER_PUB_ENABLED
+#include <AP_RangeFinder/AP_RangeFinder.h>
+#include <AP_RangeFinder/AP_RangeFinder_Backend.h>
+#endif // AP_DDS_RANGEFINDER_PUB_ENABLED
+#if AP_DDS_PROXIMITY_PUB_ENABLED
+#include <AP_Proximity/AP_Proximity.h>
+#endif // AP_DDS_PROXIMITY_PUB_ENABLED
+#if AP_DDS_BAROMETER_PUB_ENABLED
+#include <AP_Baro/AP_Baro.h>
+#endif // AP_DDS_BAROMETER_PUB_ENABLED
+#if AP_DDS_MAGNETOMETER_PUB_ENABLED
+#include <AP_Compass/AP_Compass.h>
+#endif // AP_DDS_MAGNETOMETER_PUB_ENABLED
+#if AP_DDS_OPTICALFLOW_PUB_ENABLED
+#include <AP_OpticalFlow/AP_OpticalFlow.h>
+#endif // AP_DDS_OPTICALFLOW_PUB_ENABLED
+#if AP_DDS_EKFSTATUS_PUB_ENABLED
+// EKF status uses AHRS
+#endif // AP_DDS_EKFSTATUS_PUB_ENABLED
+#if AP_DDS_SERVOOUTPUTS_PUB_ENABLED
+#include <SRV_Channel/SRV_Channel.h>
+#endif // AP_DDS_SERVOOUTPUTS_PUB_ENABLED
 
 #if AP_EXTERNAL_CONTROL_ENABLED
 #include "AP_DDS_ExternalControl.h"
@@ -89,6 +128,27 @@ static constexpr uint16_t DELAY_PING_MS = 500;
 #if AP_DDS_STATUS_PUB_ENABLED
 static constexpr uint16_t DELAY_STATUS_TOPIC_MS = AP_DDS_DELAY_STATUS_TOPIC_MS;
 #endif // AP_DDS_STATUS_PUB_ENABLED
+#if AP_DDS_RANGEFINDER_PUB_ENABLED
+static constexpr uint16_t DELAY_RANGEFINDER_TOPIC_MS = AP_DDS_DELAY_RANGEFINDER_TOPIC_MS;
+#endif // AP_DDS_RANGEFINDER_PUB_ENABLED
+#if AP_DDS_PROXIMITY_PUB_ENABLED
+static constexpr uint16_t DELAY_PROXIMITY_TOPIC_MS = AP_DDS_DELAY_PROXIMITY_TOPIC_MS;
+#endif // AP_DDS_PROXIMITY_PUB_ENABLED
+#if AP_DDS_BAROMETER_PUB_ENABLED
+static constexpr uint16_t DELAY_BAROMETER_TOPIC_MS = AP_DDS_DELAY_BAROMETER_TOPIC_MS;
+#endif // AP_DDS_BAROMETER_PUB_ENABLED
+#if AP_DDS_MAGNETOMETER_PUB_ENABLED
+static constexpr uint16_t DELAY_MAGNETOMETER_TOPIC_MS = AP_DDS_DELAY_MAGNETOMETER_TOPIC_MS;
+#endif // AP_DDS_MAGNETOMETER_PUB_ENABLED
+#if AP_DDS_OPTICALFLOW_PUB_ENABLED
+static constexpr uint16_t DELAY_OPTICALFLOW_TOPIC_MS = AP_DDS_DELAY_OPTICALFLOW_TOPIC_MS;
+#endif // AP_DDS_OPTICALFLOW_PUB_ENABLED
+#if AP_DDS_EKFSTATUS_PUB_ENABLED
+static constexpr uint16_t DELAY_EKFSTATUS_TOPIC_MS = AP_DDS_DELAY_EKFSTATUS_TOPIC_MS;
+#endif // AP_DDS_EKFSTATUS_PUB_ENABLED
+#if AP_DDS_SERVOOUTPUTS_PUB_ENABLED
+static constexpr uint16_t DELAY_SERVOOUTPUTS_TOPIC_MS = AP_DDS_DELAY_SERVOOUTPUTS_TOPIC_MS;
+#endif // AP_DDS_SERVOOUTPUTS_PUB_ENABLED
 
 // Define the subscriber data members, which are static class scope.
 // If these are created on the stack in the subscriber,
@@ -105,6 +165,12 @@ geometry_msgs_msg_TwistStamped AP_DDS_Client::rx_velocity_control_topic {};
 #if AP_DDS_GLOBAL_POS_CTRL_ENABLED
 ardupilot_msgs_msg_GlobalPosition AP_DDS_Client::rx_global_position_control_topic {};
 #endif // AP_DDS_GLOBAL_POS_CTRL_ENABLED
+#if AP_DDS_GUIDED_TARGET_SUB_ENABLED
+ardupilot_msgs_msg_GuidedTarget AP_DDS_Client::rx_guided_target_topic {};
+#endif // AP_DDS_GUIDED_TARGET_SUB_ENABLED
+#if AP_DDS_ATTITUDE_TARGET_SUB_ENABLED
+ardupilot_msgs_msg_AttitudeTarget AP_DDS_Client::rx_attitude_target_topic {};
+#endif // AP_DDS_ATTITUDE_TARGET_SUB_ENABLED
 
 // Define the parameter server data members, which are static class scope.
 // If these are created on the stack, then the AP_DDS_Client::on_request
@@ -762,6 +828,214 @@ bool AP_DDS_Client::update_topic(ardupilot_msgs_msg_Status& msg)
     }
 }
 #endif // AP_DDS_STATUS_PUB_ENABLED
+
+#if AP_DDS_RANGEFINDER_PUB_ENABLED
+bool AP_DDS_Client::update_topic(ardupilot_msgs_msg_RangeFinder& msg, const uint8_t instance)
+{
+    RangeFinder *rangefinder = AP::rangefinder();
+    if (rangefinder == nullptr) {
+        return false;
+    }
+    const AP_RangeFinder_Backend *backend = rangefinder->get_backend(instance);
+    if (backend == nullptr) {
+        return false;
+    }
+    update_topic(msg.header.stamp);
+    STRCPY(msg.header.frame_id, BASE_LINK_FRAME_ID);
+    msg.instance_id = instance;
+    msg.orientation = static_cast<uint8_t>(backend->orientation());
+    msg.distance_m = backend->distance();
+    msg.min_distance_m = backend->min_distance();
+    msg.max_distance_m = backend->max_distance();
+    msg.signal_quality = backend->signal_quality_pct();
+    msg.status = static_cast<uint8_t>(backend->status());
+    return backend->has_data();
+}
+#endif // AP_DDS_RANGEFINDER_PUB_ENABLED
+
+#if AP_DDS_PROXIMITY_PUB_ENABLED
+bool AP_DDS_Client::update_topic(ardupilot_msgs_msg_Proximity& msg, const uint8_t instance)
+{
+    AP_Proximity *proximity = AP::proximity();
+    if (proximity == nullptr) {
+        return false;
+    }
+    
+    update_topic(msg.header.stamp);
+    STRCPY(msg.header.frame_id, BASE_LINK_FRAME_ID);
+    msg.instance_id = instance;
+    msg.status = static_cast<uint8_t>(proximity->get_status());
+    
+    // Distance limits
+    msg.min_distance_m = proximity->distance_min_m();
+    msg.max_distance_m = proximity->distance_max_m();
+    
+    // Initialize all distances to max (no obstacle)
+    for (uint8_t i = 0; i < 72; i++) {
+        msg.distances[i] = msg.max_distance_m;
+    }
+    
+    // Get 8-sector horizontal distances and map to 72-sector array
+    // ArduPilot uses 8 sectors (45 deg each), IDL expects 72 sectors (5 deg each)
+    Proximity_Distance_Array dist_array;
+    if (proximity->get_horizontal_distances(dist_array)) {
+        msg.num_sectors = 0;
+        msg.angle_offset = 0.0f;  // First sector at 0 degrees
+        msg.angle_width = 5.0f;   // 5 degrees per sector (360/72)
+        
+        for (uint8_t sector = 0; sector < PROXIMITY_MAX_DIRECTION && sector < 8; sector++) {
+            if (dist_array.valid(sector)) {
+                // Map 8 ArduPilot sectors to 72-sector array
+                // Each ArduPilot sector spans 9 output sectors (45 deg / 5 deg)
+                uint8_t start_idx = sector * 9;
+                for (uint8_t j = 0; j < 9 && (start_idx + j) < 72; j++) {
+                    msg.distances[start_idx + j] = dist_array.distance[sector];
+                }
+                msg.num_sectors++;
+            }
+        }
+    } else {
+        msg.num_sectors = 0;
+        msg.angle_offset = 0.0f;
+        msg.angle_width = 5.0f;
+    }
+    
+    return proximity->get_status() == AP_Proximity::Status::Good;
+}
+#endif // AP_DDS_PROXIMITY_PUB_ENABLED
+
+#if AP_DDS_BAROMETER_PUB_ENABLED
+bool AP_DDS_Client::update_topic(ardupilot_msgs_msg_Barometer& msg, const uint8_t instance)
+{
+    AP_Baro &baro = AP::baro();
+    if (instance >= baro.num_instances()) {
+        return false;
+    }
+    update_topic(msg.header.stamp);
+    STRCPY(msg.header.frame_id, BASE_LINK_FRAME_ID);
+    msg.instance_id = instance;
+    msg.pressure_pa = baro.get_pressure(instance);
+    msg.temperature_c = baro.get_temperature(instance);
+    msg.altitude_m = baro.get_altitude();
+    msg.altitude_amsl_m = baro.get_altitude_AMSL();
+    msg.climb_rate_ms = baro.get_climb_rate();
+    msg.healthy = baro.healthy(instance);
+    msg.is_primary = (instance == baro.get_primary());
+    return baro.healthy(instance);
+}
+#endif // AP_DDS_BAROMETER_PUB_ENABLED
+
+#if AP_DDS_MAGNETOMETER_PUB_ENABLED
+bool AP_DDS_Client::update_topic(ardupilot_msgs_msg_Magnetometer& msg, const uint8_t instance)
+{
+    Compass &compass = AP::compass();
+    if (instance >= compass.get_count()) {
+        return false;
+    }
+    update_topic(msg.header.stamp);
+    STRCPY(msg.header.frame_id, BASE_LINK_FRAME_ID);
+    msg.instance_id = instance;
+    const Vector3f &field = compass.get_field(instance);
+    msg.field.x = field.x;
+    msg.field.y = field.y;
+    msg.field.z = field.z;
+    const Vector3f &offsets = compass.get_offsets(instance);
+    msg.offsets.x = offsets.x;
+    msg.offsets.y = offsets.y;
+    msg.offsets.z = offsets.z;
+    msg.declination_deg = degrees(compass.get_declination());
+    msg.healthy = compass.healthy(instance);
+    msg.calibrating = compass.is_calibrating();
+    msg.is_primary = (instance == compass.get_first_usable());
+    return compass.healthy(instance);
+}
+#endif // AP_DDS_MAGNETOMETER_PUB_ENABLED
+
+#if AP_DDS_OPTICALFLOW_PUB_ENABLED
+bool AP_DDS_Client::update_topic(ardupilot_msgs_msg_OpticalFlow& msg)
+{
+#if AP_OPTICALFLOW_ENABLED
+    const AP_OpticalFlow *optflow = AP::opticalflow();
+    if (optflow == nullptr) {
+        return false;
+    }
+    update_topic(msg.header.stamp);
+    STRCPY(msg.header.frame_id, BASE_LINK_FRAME_ID);
+    msg.instance_id = 0;
+    const Vector2f &flow_rate = optflow->flowRate();
+    msg.flow_rate.x = flow_rate.x;
+    msg.flow_rate.y = flow_rate.y;
+    msg.flow_rate.z = 0.0f;
+    const Vector2f &body_rate = optflow->bodyRate();
+    msg.body_rate.x = body_rate.x;
+    msg.body_rate.y = body_rate.y;
+    msg.body_rate.z = 0.0f;
+    msg.quality = optflow->quality();
+    msg.healthy = optflow->healthy();
+    return optflow->healthy();
+#else
+    return false;
+#endif // AP_OPTICALFLOW_ENABLED
+}
+#endif // AP_DDS_OPTICALFLOW_PUB_ENABLED
+
+#if AP_DDS_EKFSTATUS_PUB_ENABLED
+void AP_DDS_Client::update_topic(ardupilot_msgs_msg_EKFStatus& msg)
+{
+    auto &ahrs = AP::ahrs();
+    update_topic(msg.header.stamp);
+    STRCPY(msg.header.frame_id, BASE_LINK_FRAME_ID);
+    // EKF type and lane are internal state - set sensible defaults
+    msg.ekf_type = 0;
+    msg.active_lane = 0;
+    
+    nav_filter_status status;
+    if (ahrs.get_filter_status(status)) {
+        msg.is_healthy = status.flags.attitude && status.flags.horiz_vel && status.flags.vert_vel;
+        msg.attitude_ok = status.flags.attitude;
+        msg.velocity_horiz_ok = status.flags.horiz_vel;
+        msg.velocity_vert_ok = status.flags.vert_vel;
+        msg.position_horiz_ok = status.flags.horiz_pos_abs || status.flags.horiz_pos_rel;
+        msg.position_vert_ok = status.flags.vert_pos;
+        msg.compass_ok = AP::compass().healthy();  // Use actual compass health status
+        msg.terrain_ok = status.flags.terrain_alt;
+    }
+    
+    // get_variances signature: (float &velVar, float &posVar, float &hgtVar, Vector3f &magVar, float &tasVar)
+    float vel_var, pos_var, hgt_var, tas_var;
+    Vector3f mag_var;
+    if (ahrs.get_variances(vel_var, pos_var, hgt_var, mag_var, tas_var)) {
+        msg.velocity_variance = vel_var;
+        msg.pos_horiz_variance = pos_var;
+        msg.pos_vert_variance = hgt_var;
+        msg.compass_variance = mag_var.length();  // Use magnitude of Vector3f
+        msg.terrain_variance = 0.0f;  // Not directly provided by get_variances
+    }
+}
+#endif // AP_DDS_EKFSTATUS_PUB_ENABLED
+
+#if AP_DDS_SERVOOUTPUTS_PUB_ENABLED
+void AP_DDS_Client::update_topic(ardupilot_msgs_msg_ServoOutputs& msg)
+{
+    update_topic(msg.header.stamp);
+    STRCPY(msg.header.frame_id, BASE_LINK_FRAME_ID);
+    msg.num_channels = MIN(NUM_SERVO_CHANNELS, static_cast<uint8_t>(16));
+    for (uint8_t i = 0; i < msg.num_channels; i++) {
+        SRV_Channel *ch = SRV_Channels::srv_channel(i);
+        if (ch != nullptr) {
+            msg.pwm[i] = ch->get_output_pwm();
+            // Note: normalized output not available via public API
+            msg.output[i] = 0.0f;
+            msg.function[i] = static_cast<uint16_t>(ch->get_function());
+        } else {
+            msg.pwm[i] = 0;
+            msg.output[i] = 0.0f;
+            msg.function[i] = 0;
+        }
+    }
+}
+#endif // AP_DDS_SERVOOUTPUTS_PUB_ENABLED
+
 /*
   start the DDS thread
  */
@@ -880,6 +1154,36 @@ void AP_DDS_Client::on_topic(uxrSession* uxr_session, uxrObjectId object_id, uin
         break;
     }
 #endif // AP_DDS_GLOBAL_POS_CTRL_ENABLED
+#if AP_DDS_GUIDED_TARGET_SUB_ENABLED
+    case topics[to_underlying(TopicIndex::GUIDED_TARGET_SUB)].dr_id.id: {
+        const bool success = ardupilot_msgs_msg_GuidedTarget_deserialize_topic(ub, &rx_guided_target_topic);
+        if (success == false) {
+            break;
+        }
+
+#if AP_EXTERNAL_CONTROL_ENABLED
+        if (!AP_DDS_External_Control::handle_guided_target(rx_guided_target_topic)) {
+            // TODO handle guided target failure through rosout, throttled.
+        }
+#endif // AP_EXTERNAL_CONTROL_ENABLED
+        break;
+    }
+#endif // AP_DDS_GUIDED_TARGET_SUB_ENABLED
+#if AP_DDS_ATTITUDE_TARGET_SUB_ENABLED
+    case topics[to_underlying(TopicIndex::ATTITUDE_TARGET_SUB)].dr_id.id: {
+        const bool success = ardupilot_msgs_msg_AttitudeTarget_deserialize_topic(ub, &rx_attitude_target_topic);
+        if (success == false) {
+            break;
+        }
+
+#if AP_EXTERNAL_CONTROL_ENABLED
+        if (!AP_DDS_External_Control::handle_attitude_target(rx_attitude_target_topic)) {
+            // TODO handle attitude target failure through rosout, throttled.
+        }
+#endif // AP_EXTERNAL_CONTROL_ENABLED
+        break;
+    }
+#endif // AP_DDS_ATTITUDE_TARGET_SUB_ENABLED
     }
 
 }
@@ -1215,6 +1519,185 @@ void AP_DDS_Client::on_request(uxrSession* uxr_session, uxrObjectId object_id, u
         break;
     }
 #endif // AP_DDS_PARAMETER_SERVER_ENABLED
+#if AP_DDS_LAND_SERVER_ENABLED
+    case services[to_underlying(ServiceIndex::LAND)].rep_id: {
+        ardupilot_msgs_srv_Land_Request land_request;
+        ardupilot_msgs_srv_Land_Response land_response;
+        const bool deserialize_success = ardupilot_msgs_srv_Land_Request_deserialize_topic(ub, &land_request);
+        if (deserialize_success == false) {
+            break;
+        }
+
+        // Set LAND mode (mode number 9)
+        land_response.success = AP::vehicle()->set_mode(9, ModeReason::DDS_COMMAND);
+        land_response.curr_mode = AP::vehicle()->get_mode();
+
+        const uxrObjectId replier_id = {
+            .id = services[to_underlying(ServiceIndex::LAND)].rep_id,
+            .type = UXR_REPLIER_ID
+        };
+
+        uint8_t reply_buffer[16] {};
+        ucdrBuffer reply_ub;
+        ucdr_init_buffer(&reply_ub, reply_buffer, sizeof(reply_buffer));
+        const bool serialize_success = ardupilot_msgs_srv_Land_Response_serialize_topic(&reply_ub, &land_response);
+        if (serialize_success == false) {
+            break;
+        }
+
+        uxr_buffer_reply(uxr_session, reliable_out, replier_id, sample_id, reply_buffer, ucdr_buffer_length(&reply_ub));
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "%s Land Request : %s", msg_prefix, land_response.success ? "SUCCESS" : "FAIL");
+        break;
+    }
+#endif // AP_DDS_LAND_SERVER_ENABLED
+#if AP_DDS_RTL_SERVER_ENABLED
+    case services[to_underlying(ServiceIndex::RTL)].rep_id: {
+        ardupilot_msgs_srv_ReturnToLaunch_Request rtl_request;
+        ardupilot_msgs_srv_ReturnToLaunch_Response rtl_response;
+        const bool deserialize_success = ardupilot_msgs_srv_ReturnToLaunch_Request_deserialize_topic(ub, &rtl_request);
+        if (deserialize_success == false) {
+            break;
+        }
+
+        // Select mode based on rtl_type: 0=RTL (mode 6), 1=SmartRTL (mode 21)
+        uint8_t mode_num = 6;  // Default RTL
+        if (rtl_request.rtl_type == 1) {
+            mode_num = 21;  // SmartRTL
+        }
+
+        rtl_response.success = AP::vehicle()->set_mode(mode_num, ModeReason::DDS_COMMAND);
+        rtl_response.actual_mode = AP::vehicle()->get_mode();
+
+        const uxrObjectId replier_id = {
+            .id = services[to_underlying(ServiceIndex::RTL)].rep_id,
+            .type = UXR_REPLIER_ID
+        };
+
+        uint8_t reply_buffer[16] {};
+        ucdrBuffer reply_ub;
+        ucdr_init_buffer(&reply_ub, reply_buffer, sizeof(reply_buffer));
+        const bool serialize_success = ardupilot_msgs_srv_ReturnToLaunch_Response_serialize_topic(&reply_ub, &rtl_response);
+        if (serialize_success == false) {
+            break;
+        }
+
+        uxr_buffer_reply(uxr_session, reliable_out, replier_id, sample_id, reply_buffer, ucdr_buffer_length(&reply_ub));
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "%s RTL Request (type %d) : %s", msg_prefix, rtl_request.rtl_type, rtl_response.success ? "SUCCESS" : "FAIL");
+        break;
+    }
+#endif // AP_DDS_RTL_SERVER_ENABLED
+#if AP_DDS_SET_HOME_SERVER_ENABLED
+    case services[to_underlying(ServiceIndex::SET_HOME)].rep_id: {
+        ardupilot_msgs_srv_SetHome_Request home_request;
+        ardupilot_msgs_srv_SetHome_Response home_response;
+        const bool deserialize_success = ardupilot_msgs_srv_SetHome_Request_deserialize_topic(ub, &home_request);
+        if (deserialize_success == false) {
+            break;
+        }
+
+        if (home_request.use_current) {
+            home_response.success = AP::vehicle()->set_home_to_current_location(false);
+        } else {
+            Location home_loc;
+            home_loc.lat = static_cast<int32_t>(home_request.latitude * 1.0e7);
+            home_loc.lng = static_cast<int32_t>(home_request.longitude * 1.0e7);
+            home_loc.alt = static_cast<int32_t>(home_request.altitude_m * 100);
+            home_response.success = AP::ahrs().set_home(home_loc);
+        }
+
+        const uxrObjectId replier_id = {
+            .id = services[to_underlying(ServiceIndex::SET_HOME)].rep_id,
+            .type = UXR_REPLIER_ID
+        };
+
+        uint8_t reply_buffer[8] {};
+        ucdrBuffer reply_ub;
+        ucdr_init_buffer(&reply_ub, reply_buffer, sizeof(reply_buffer));
+        const bool serialize_success = ardupilot_msgs_srv_SetHome_Response_serialize_topic(&reply_ub, &home_response);
+        if (serialize_success == false) {
+            break;
+        }
+
+        uxr_buffer_reply(uxr_session, reliable_out, replier_id, sample_id, reply_buffer, ucdr_buffer_length(&reply_ub));
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "%s Set Home Request : %s", msg_prefix, home_response.success ? "SUCCESS" : "FAIL");
+        break;
+    }
+#endif // AP_DDS_SET_HOME_SERVER_ENABLED
+#if AP_DDS_SERVO_CONTROL_SERVER_ENABLED
+    case services[to_underlying(ServiceIndex::SERVO_CONTROL)].rep_id: {
+        ardupilot_msgs_srv_ServoControl_Request servo_request;
+        ardupilot_msgs_srv_ServoControl_Response servo_response;
+        const bool deserialize_success = ardupilot_msgs_srv_ServoControl_Request_deserialize_topic(ub, &servo_request);
+        if (deserialize_success == false) {
+            break;
+        }
+
+        // Set servo PWM with optional timeout
+        if (servo_request.channel < NUM_SERVO_CHANNELS) {
+            if (servo_request.timeout_ms > 0) {
+                SRV_Channels::set_output_pwm_chan_timeout(servo_request.channel, servo_request.pwm_value, servo_request.timeout_ms);
+            } else {
+                SRV_Channels::set_output_pwm_chan(servo_request.channel, servo_request.pwm_value);
+            }
+            servo_response.success = true;
+        } else {
+            servo_response.success = false;
+        }
+
+        const uxrObjectId replier_id = {
+            .id = services[to_underlying(ServiceIndex::SERVO_CONTROL)].rep_id,
+            .type = UXR_REPLIER_ID
+        };
+
+        uint8_t reply_buffer[8] {};
+        ucdrBuffer reply_ub;
+        ucdr_init_buffer(&reply_ub, reply_buffer, sizeof(reply_buffer));
+        const bool serialize_success = ardupilot_msgs_srv_ServoControl_Response_serialize_topic(&reply_ub, &servo_response);
+        if (serialize_success == false) {
+            break;
+        }
+
+        uxr_buffer_reply(uxr_session, reliable_out, replier_id, sample_id, reply_buffer, ucdr_buffer_length(&reply_ub));
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "%s Servo Control ch%d=%d : %s", msg_prefix, servo_request.channel, servo_request.pwm_value, servo_response.success ? "SUCCESS" : "FAIL");
+        break;
+    }
+#endif // AP_DDS_SERVO_CONTROL_SERVER_ENABLED
+#if AP_DDS_FENCE_CONTROL_SERVER_ENABLED
+    case services[to_underlying(ServiceIndex::FENCE_CONTROL)].rep_id: {
+        ardupilot_msgs_srv_FenceControl_Request fence_request;
+        ardupilot_msgs_srv_FenceControl_Response fence_response;
+        const bool deserialize_success = ardupilot_msgs_srv_FenceControl_Request_deserialize_topic(ub, &fence_request);
+        if (deserialize_success == false) {
+            break;
+        }
+
+        auto *fence = AP::fence();
+        if (fence != nullptr) {
+            fence_response.fences_changed = fence->enable_configured(fence_request.enable);
+            fence_response.success = true;
+        } else {
+            fence_response.fences_changed = 0;
+            fence_response.success = false;
+        }
+
+        const uxrObjectId replier_id = {
+            .id = services[to_underlying(ServiceIndex::FENCE_CONTROL)].rep_id,
+            .type = UXR_REPLIER_ID
+        };
+
+        uint8_t reply_buffer[8] {};
+        ucdrBuffer reply_ub;
+        ucdr_init_buffer(&reply_ub, reply_buffer, sizeof(reply_buffer));
+        const bool serialize_success = ardupilot_msgs_srv_FenceControl_Response_serialize_topic(&reply_ub, &fence_response);
+        if (serialize_success == false) {
+            break;
+        }
+
+        uxr_buffer_reply(uxr_session, reliable_out, replier_id, sample_id, reply_buffer, ucdr_buffer_length(&reply_ub));
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "%s Fence %s : %s", msg_prefix, fence_request.enable ? "Enable" : "Disable", fence_response.success ? "SUCCESS" : "FAIL");
+        break;
+    }
+#endif // AP_DDS_FENCE_CONTROL_SERVER_ENABLED
     }
 }
 
@@ -1769,6 +2252,118 @@ void AP_DDS_Client::write_status_topic()
 }
 #endif // AP_DDS_STATUS_PUB_ENABLED
 
+#if AP_DDS_RANGEFINDER_PUB_ENABLED
+void AP_DDS_Client::write_rangefinder_topic()
+{
+    WITH_SEMAPHORE(csem);
+    if (connected) {
+        ucdrBuffer ub {};
+        const uint32_t topic_size = ardupilot_msgs_msg_RangeFinder_size_of_topic(&rangefinder_topic, 0);
+        uxr_prepare_output_stream(&session, reliable_out, topics[to_underlying(TopicIndex::RANGEFINDER_PUB)].dw_id, &ub, topic_size);
+        const bool success = ardupilot_msgs_msg_RangeFinder_serialize_topic(&ub, &rangefinder_topic);
+        if (!success) {
+            // serialization failed
+        }
+    }
+}
+#endif // AP_DDS_RANGEFINDER_PUB_ENABLED
+
+#if AP_DDS_PROXIMITY_PUB_ENABLED
+void AP_DDS_Client::write_proximity_topic()
+{
+    WITH_SEMAPHORE(csem);
+    if (connected) {
+        ucdrBuffer ub {};
+        const uint32_t topic_size = ardupilot_msgs_msg_Proximity_size_of_topic(&proximity_topic, 0);
+        uxr_prepare_output_stream(&session, reliable_out, topics[to_underlying(TopicIndex::PROXIMITY_PUB)].dw_id, &ub, topic_size);
+        const bool success = ardupilot_msgs_msg_Proximity_serialize_topic(&ub, &proximity_topic);
+        if (!success) {
+            // serialization failed
+        }
+    }
+}
+#endif // AP_DDS_PROXIMITY_PUB_ENABLED
+
+#if AP_DDS_BAROMETER_PUB_ENABLED
+void AP_DDS_Client::write_barometer_topic()
+{
+    WITH_SEMAPHORE(csem);
+    if (connected) {
+        ucdrBuffer ub {};
+        const uint32_t topic_size = ardupilot_msgs_msg_Barometer_size_of_topic(&barometer_topic, 0);
+        uxr_prepare_output_stream(&session, reliable_out, topics[to_underlying(TopicIndex::BAROMETER_PUB)].dw_id, &ub, topic_size);
+        const bool success = ardupilot_msgs_msg_Barometer_serialize_topic(&ub, &barometer_topic);
+        if (!success) {
+            // serialization failed
+        }
+    }
+}
+#endif // AP_DDS_BAROMETER_PUB_ENABLED
+
+#if AP_DDS_MAGNETOMETER_PUB_ENABLED
+void AP_DDS_Client::write_magnetometer_topic()
+{
+    WITH_SEMAPHORE(csem);
+    if (connected) {
+        ucdrBuffer ub {};
+        const uint32_t topic_size = ardupilot_msgs_msg_Magnetometer_size_of_topic(&magnetometer_topic, 0);
+        uxr_prepare_output_stream(&session, reliable_out, topics[to_underlying(TopicIndex::MAGNETOMETER_PUB)].dw_id, &ub, topic_size);
+        const bool success = ardupilot_msgs_msg_Magnetometer_serialize_topic(&ub, &magnetometer_topic);
+        if (!success) {
+            // serialization failed
+        }
+    }
+}
+#endif // AP_DDS_MAGNETOMETER_PUB_ENABLED
+
+#if AP_DDS_OPTICALFLOW_PUB_ENABLED
+void AP_DDS_Client::write_opticalflow_topic()
+{
+    WITH_SEMAPHORE(csem);
+    if (connected) {
+        ucdrBuffer ub {};
+        const uint32_t topic_size = ardupilot_msgs_msg_OpticalFlow_size_of_topic(&opticalflow_topic, 0);
+        uxr_prepare_output_stream(&session, reliable_out, topics[to_underlying(TopicIndex::OPTICALFLOW_PUB)].dw_id, &ub, topic_size);
+        const bool success = ardupilot_msgs_msg_OpticalFlow_serialize_topic(&ub, &opticalflow_topic);
+        if (!success) {
+            // serialization failed
+        }
+    }
+}
+#endif // AP_DDS_OPTICALFLOW_PUB_ENABLED
+
+#if AP_DDS_EKFSTATUS_PUB_ENABLED
+void AP_DDS_Client::write_ekfstatus_topic()
+{
+    WITH_SEMAPHORE(csem);
+    if (connected) {
+        ucdrBuffer ub {};
+        const uint32_t topic_size = ardupilot_msgs_msg_EKFStatus_size_of_topic(&ekfstatus_topic, 0);
+        uxr_prepare_output_stream(&session, reliable_out, topics[to_underlying(TopicIndex::EKFSTATUS_PUB)].dw_id, &ub, topic_size);
+        const bool success = ardupilot_msgs_msg_EKFStatus_serialize_topic(&ub, &ekfstatus_topic);
+        if (!success) {
+            // serialization failed
+        }
+    }
+}
+#endif // AP_DDS_EKFSTATUS_PUB_ENABLED
+
+#if AP_DDS_SERVOOUTPUTS_PUB_ENABLED
+void AP_DDS_Client::write_servooutputs_topic()
+{
+    WITH_SEMAPHORE(csem);
+    if (connected) {
+        ucdrBuffer ub {};
+        const uint32_t topic_size = ardupilot_msgs_msg_ServoOutputs_size_of_topic(&servooutputs_topic, 0);
+        uxr_prepare_output_stream(&session, reliable_out, topics[to_underlying(TopicIndex::SERVOOUTPUTS_PUB)].dw_id, &ub, topic_size);
+        const bool success = ardupilot_msgs_msg_ServoOutputs_serialize_topic(&ub, &servooutputs_topic);
+        if (!success) {
+            // serialization failed
+        }
+    }
+}
+#endif // AP_DDS_SERVOOUTPUTS_PUB_ENABLED
+
 void AP_DDS_Client::update()
 {
     WITH_SEMAPHORE(csem);
@@ -1873,6 +2468,60 @@ void AP_DDS_Client::update()
         last_status_check_time_ms = cur_time_ms;
     }
 #endif // AP_DDS_STATUS_PUB_ENABLED
+#if AP_DDS_RANGEFINDER_PUB_ENABLED
+    if (cur_time_ms - last_rangefinder_time_ms > DELAY_RANGEFINDER_TOPIC_MS) {
+        last_rangefinder_time_ms = cur_time_ms;
+        if (update_topic(rangefinder_topic, 0)) {
+            write_rangefinder_topic();
+        }
+    }
+#endif // AP_DDS_RANGEFINDER_PUB_ENABLED
+#if AP_DDS_PROXIMITY_PUB_ENABLED
+    if (cur_time_ms - last_proximity_time_ms > DELAY_PROXIMITY_TOPIC_MS) {
+        last_proximity_time_ms = cur_time_ms;
+        if (update_topic(proximity_topic, 0)) {
+            write_proximity_topic();
+        }
+    }
+#endif // AP_DDS_PROXIMITY_PUB_ENABLED
+#if AP_DDS_BAROMETER_PUB_ENABLED
+    if (cur_time_ms - last_barometer_time_ms > DELAY_BAROMETER_TOPIC_MS) {
+        last_barometer_time_ms = cur_time_ms;
+        if (update_topic(barometer_topic, 0)) {
+            write_barometer_topic();
+        }
+    }
+#endif // AP_DDS_BAROMETER_PUB_ENABLED
+#if AP_DDS_MAGNETOMETER_PUB_ENABLED
+    if (cur_time_ms - last_magnetometer_time_ms > DELAY_MAGNETOMETER_TOPIC_MS) {
+        last_magnetometer_time_ms = cur_time_ms;
+        if (update_topic(magnetometer_topic, 0)) {
+            write_magnetometer_topic();
+        }
+    }
+#endif // AP_DDS_MAGNETOMETER_PUB_ENABLED
+#if AP_DDS_OPTICALFLOW_PUB_ENABLED
+    if (cur_time_ms - last_opticalflow_time_ms > DELAY_OPTICALFLOW_TOPIC_MS) {
+        last_opticalflow_time_ms = cur_time_ms;
+        if (update_topic(opticalflow_topic)) {
+            write_opticalflow_topic();
+        }
+    }
+#endif // AP_DDS_OPTICALFLOW_PUB_ENABLED
+#if AP_DDS_EKFSTATUS_PUB_ENABLED
+    if (cur_time_ms - last_ekfstatus_time_ms > DELAY_EKFSTATUS_TOPIC_MS) {
+        last_ekfstatus_time_ms = cur_time_ms;
+        update_topic(ekfstatus_topic);
+        write_ekfstatus_topic();
+    }
+#endif // AP_DDS_EKFSTATUS_PUB_ENABLED
+#if AP_DDS_SERVOOUTPUTS_PUB_ENABLED
+    if (cur_time_ms - last_servooutputs_time_ms > DELAY_SERVOOUTPUTS_TOPIC_MS) {
+        last_servooutputs_time_ms = cur_time_ms;
+        update_topic(servooutputs_topic);
+        write_servooutputs_topic();
+    }
+#endif // AP_DDS_SERVOOUTPUTS_PUB_ENABLED
 
     status_ok = uxr_run_session_time(&session, 1);
 }

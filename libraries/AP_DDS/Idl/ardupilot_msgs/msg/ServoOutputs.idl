@@ -1,0 +1,16 @@
+// ServoOutputs message for DDS transport
+
+#include "std_msgs/msg/Header.idl"
+
+module ardupilot_msgs {
+  module msg {
+    @verbatim(language = "comment", text = "Servo output PWM and normalized values")
+    struct ServoOutputs {
+      std_msgs::msg::Header header;
+      uint8 num_channels;
+      uint16 pwm[16];
+      float output[16];
+      uint16 function[16];
+    };
+  };
+};
