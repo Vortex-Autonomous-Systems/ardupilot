@@ -126,14 +126,14 @@ const AP_Param::GroupInfo SoaringController::var_info[] = {
     // @Param: MAX_DRIFT
     // @DisplayName: (Optional) Maximum drift distance to allow when thermalling.
     // @Description: The previous mode will be restored if the horizontal distance to the thermalling start location exceeds this value. -1 to disable.
-    // @Range: 0 1000
+    // @Range: -1 1000
     // @User: Advanced
     AP_GROUPINFO("MAX_DRIFT", 16, SoaringController, max_drift, -1),
 
     // @Param: MAX_RADIUS
     // @DisplayName: (Optional) Maximum distance from home
     // @Description: RTL will be entered when a thermal is exited and the plane is more than this distance from home. -1 to disable.
-    // @Range: 0 1000
+    // @Range: -1 1000
     // @User: Advanced
     AP_GROUPINFO("MAX_RADIUS", 17, SoaringController, max_radius, -1),
 
@@ -325,7 +325,12 @@ void SoaringController::update_thermalling()
         return;
     }
 
-    Vector3f wind_drift = _ahrs.wind_estimate()*deltaT*_vario.get_filtered_climb()/_ekf.X[0];
+    Vector3f wind;
+    // use the estimate even if it is not marked valid, to preserve
+    // existing behaviour
+    IGNORE_RETURN(_ahrs.get_wind(wind));
+
+    Vector3f wind_drift = wind*deltaT*_vario.get_filtered_climb()/_ekf.X[0];
 
     // update the filter
     _ekf.update(_vario.reading, current_position.x, current_position.y, wind_drift.x, wind_drift.y);
@@ -392,7 +397,10 @@ void SoaringController::update_cruising()
     // Calculate the optimal airspeed for the current conditions of wind along current direction,
     // expected lift in next thermal and filtered sink rate.
 
-    Vector3f wind    = AP::ahrs().wind_estimate();
+    Vector3f wind;
+    // use the estimate even if it is not marked valid, to preserve
+    // existing behaviour
+    IGNORE_RETURN(AP::ahrs().get_wind(wind));
     Vector3f wind_bf = AP::ahrs().earth_to_body(wind);
 
     const float wx = wind_bf.x;

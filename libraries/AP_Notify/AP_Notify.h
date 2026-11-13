@@ -14,6 +14,8 @@
  */
 #pragma once
 
+#include <AP_GPS/AP_GPS_FixType.h>
+
 #include <AP_Common/AP_Common.h>
 #include <AP_Param/AP_Param.h>
 #include "AP_Notify_config.h"
@@ -115,7 +117,7 @@ public:
     /// notify_flags_type - bitmask of notification flags
     struct notify_flags_and_values_type {
         bool initialising;        // true if initialising and the vehicle should not be moved
-        uint8_t gps_status;       // see the GPS_0 = no gps, 1 = no lock, 2 = 2d lock, 3 = 3d lock, 4 = dgps lock, 5 = rtk lock
+        AP_GPS_FixType gps_status; // GPS fix type
         uint8_t gps_num_sats;     // number of sats
         uint8_t flight_mode;      // flight mode
         bool armed;               // 0 = disarmed, 1 = armed
@@ -213,7 +215,7 @@ public:
     const char* get_text() const { return _send_text; }
     uint32_t get_text_updated_millis() const {return _send_text_updated_millis; }
  
-#if AP_SCRIPTING_ENABLED
+#if AP_EXTERNAL_BINDING_ENABLED
     // send text to the display using scripting
     void send_text_scripting(const char *str, uint8_t r);
     void release_text_scripting(uint8_t r);
@@ -243,11 +245,11 @@ private:
     // parameters
     AP_Int8 _rgb_led_brightness;
     AP_Int8 _rgb_led_override;
-    AP_Int8 _buzzer_type;
+    AP_UInt8 _buzzer_type;
     AP_Int8 _display_type;
     AP_Int8 _oreo_theme;
     AP_Int8 _buzzer_pin;
-    AP_Int32 _led_type;
+    AP_UInt32 _led_type;
     AP_Int8 _buzzer_level;
     AP_Int8 _buzzer_volume;
     AP_Int8 _led_len;

@@ -41,7 +41,6 @@
 #include <AP_Logger/AP_Logger.h>          // ArduPilot Mega Flash Memory Library
 #include <AP_Baro/AP_Baro.h>
 #include <AP_Compass/AP_Compass.h>         // ArduPilot Mega Magnetometer Library
-#include <AP_InertialSensor/AP_InertialSensor.h>  // ArduPilot Mega Inertial Sensor (accel & gyro) Library
 #include <AP_AHRS/AP_AHRS.h>
 #include <AP_Mission/AP_Mission.h>         // Mission command library
 #include <AC_AttitudeControl/AC_AttitudeControl_Sub.h> // Attitude control library
@@ -51,7 +50,6 @@
 #include <AP_Relay/AP_Relay.h>           // APM relay
 #include <AP_Mount/AP_Mount.h>           // Camera/Antenna mount
 #include <AP_Vehicle/AP_Vehicle.h>         // needed for AHRS build
-#include <AP_InertialNav/AP_InertialNav.h>     // inertial navigation library
 #include <AC_WPNav/AC_WPNav.h>           // Waypoint navigation library
 #include <AC_WPNav/AC_Loiter.h>
 #include <AC_WPNav/AC_Circle.h>          // circle navigation library
@@ -96,7 +94,7 @@
 
 #include <AP_Camera/AP_Camera.h>          // Photo or video camera
 
-#if AP_SCRIPTING_ENABLED
+#if AP_SCRIPTING_LUA_ENABLED
 #include <AP_Scripting/AP_Scripting.h>
 #endif
 
@@ -124,10 +122,6 @@ public:
 
     Sub(void);
 
-protected:
-
-    bool should_zero_rc_outputs_on_reboot() const override { return true; }
-
 private:
 
     // Global parameters are all contained within the 'g' class.
@@ -141,12 +135,6 @@ private:
     RC_Channel *channel_yaw;
     RC_Channel *channel_forward;
     RC_Channel *channel_lateral;
-    
-#if AP_SUB_RC_ENABLED  
-    // flight modes convenience array
-    AP_Int8 *flight_modes;
-    const uint8_t num_flight_modes = 6;
-#endif
 
     AP_LeakDetector leak_detector;
 
@@ -177,8 +165,8 @@ private:
     AP_OSD osd;
 #endif
 
-    // system time in milliseconds of last recorded yaw reset from ekf
-    uint32_t ekfYawReset_ms = 0;
+    // count number of times the AHRS yaw has been reset:
+    uint16_t ahrs_yaw_reset_count;
 
     // GCS selection
     GCS_Sub _gcs; // avoid using this; use gcs()
@@ -288,10 +276,6 @@ private:
 
     AP_Arming_Sub arming;
 
-    // Altitude
-    // The cm/s we are moving up or down based on filtered data - Positive = UP
-    int16_t climb_rate;
-
     // Turn counter
     int32_t quarter_turn_count;
     uint8_t last_turn_state;
@@ -317,7 +301,7 @@ private:
     bool yaw_rate_only;
 
     // Yaw will point at this location if auto_yaw_mode is set to AUTO_YAW_ROI
-    Vector3f roi_WP;
+    Vector3f roi_WP_neu_cm;
 
     // bearing from current location to the yaw_look_at_WP
     float yaw_look_at_WP_bearing;
@@ -336,9 +320,6 @@ private:
     // Delay Mission Scripting Command
     int32_t condition_value;  // used in condition commands (eg delay, change alt, etc.)
     uint32_t condition_start;
-
-    // Inertial Navigation
-    AP_InertialNav inertial_nav;
 
     AP_AHRS_View ahrs_view;
 
@@ -418,7 +399,7 @@ private:
     void rotate_body_frame_to_NE(float &x, float &y);
 #if HAL_LOGGING_ENABLED
     // methods for AP_Vehicle:
-    const AP_Int32 &get_log_bitmask() override { return g.log_bitmask; }
+    const AP_UInt32 &get_log_bitmask() override { return g.log_bitmask; }
     const struct LogStructure *get_log_structures() const override {
         return log_structure;
     }
@@ -431,7 +412,7 @@ private:
     void Log_Write_Data(LogDataID id, int16_t value);
     void Log_Write_Data(LogDataID id, uint16_t value);
     void Log_Write_Data(LogDataID id, float value);
-    void Log_Write_GuidedTarget(uint8_t target_type, const Vector3f& pos_target, const Vector3f& vel_target);
+    void Log_Write_GuidedTarget(uint8_t target_type, const Vector3f& pos_target_neu_cm, const Vector3f& vel_target_neu_cms, const Vector3f& acc_target_neu_cmss);
     void Log_Write_Vehicle_Startup_Messages();
 #endif
     void load_parameters(void) override;
@@ -509,6 +490,7 @@ private:
     JSButton* get_button(uint8_t index);
     void default_js_buttons(void);
     void clear_input_hold();
+    bool jsbutton_function_is_assigned(JSButton::button_function_t function);
     void read_barometer(void);
     void init_rangefinder(void);
     void read_rangefinder(void);
@@ -571,7 +553,6 @@ private:
 
     uint16_t get_pilot_speed_dn() const;
 
-    void convert_old_parameters(void);
 
 #if LEAKDETECTOR_MAX_INSTANCES > 0
     void update_leak_pins();
@@ -579,6 +560,9 @@ private:
 #if AP_RELAY_ENABLED
     void update_relay_pins();
 #endif
+
+    void update_actuators_from_jsbuttons();
+    void update_lights_from_rcin();
     bool handle_do_motor_test(mavlink_command_int_t command);
     bool init_motor_test();
     bool verify_motor_test();
@@ -631,9 +615,9 @@ private:
     AutoSubMode auto_mode;   // controls which auto controller is run
     GuidedSubMode guided_mode;
 
-#if AP_SCRIPTING_ENABLED
+#if AP_EXTERNAL_BINDING_ENABLED
     ScriptButton script_buttons[4];
-#endif // AP_SCRIPTING_ENABLED
+#endif // AP_EXTERNAL_BINDING_ENABLED
 
 public:
     void mainloop_failsafe_check();
@@ -645,18 +629,21 @@ public:
         return _singleton;
     }
 
-#if AP_SCRIPTING_ENABLED
+#if AP_EXTERNAL_BINDING_ENABLED
     // For Lua scripting, so index is 1..4, not 0..3
     bool is_button_pressed(uint8_t index);
 
     // For Lua scripting, so index is 1..4, not 0..3
     uint8_t get_and_clear_button_count(uint8_t index);
 
+    // Set targets in GUIDED mode
+    bool set_target_posvelaccel_NED(const Vector3f& target_pos_ned_m, const Vector3f& target_vel_ned_ms, const Vector3f& target_accel_ned_mss, bool use_yaw, float yaw_deg, bool use_yaw_rate, float yaw_rate_degs, bool yaw_relative) override;
+
 #if AP_RANGEFINDER_ENABLED
     float get_rangefinder_target_cm() const WARN_IF_UNUSED { return mode_surftrak.get_rangefinder_target_cm(); }
     bool set_rangefinder_target_cm(float new_target_cm) { return mode_surftrak.set_rangefinder_target_cm(new_target_cm); }
 #endif // AP_RANGEFINDER_ENABLED
-#endif // AP_SCRIPTING_ENABLED
+#endif // AP_EXTERNAL_BINDING_ENABLED
 };
 
 extern const AP_HAL::HAL& hal;

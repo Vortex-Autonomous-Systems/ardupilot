@@ -164,16 +164,13 @@ const AP_Scheduler::Task Copter::scheduler_tasks[] = {
 #endif
     SCHED_TASK(auto_disarm_check,     10,     50,  27),
 #if AP_COPTER_AHRS_AUTO_TRIM_ENABLED
-    SCHED_TASK_CLASS(RC_Channels_Copter,   &copter.g2.rc_channels,      auto_trim_run,   10,  75,  30),
+    SCHED_TASK_CLASS(AHRSTrimming,       &copter.ahrs_trimming,       auto_run,        10,  75,  30),
 #endif
 #if AP_RANGEFINDER_ENABLED
     SCHED_TASK(read_rangefinder,      20,    100,  33),
 #endif
 #if HAL_PROXIMITY_ENABLED
-    SCHED_TASK_CLASS(AP_Proximity,         &copter.g2.proximity,        update,         200,  50,  36),
-#endif
-#if AP_BEACON_ENABLED
-    SCHED_TASK_CLASS(AP_Beacon,            &copter.g2.beacon,           update,         400,  50,  39),
+    SCHED_TASK_CLASS(AP_Proximity,         &copter.g2.proximity,        update,         200, 200,  36),
 #endif
     SCHED_TASK(update_altitude,       10,    100,  42),
     SCHED_TASK(run_nav_updates,       50,    100,  45),
@@ -276,7 +273,7 @@ void Copter::get_scheduler_tasks(const AP_Scheduler::Task *&tasks,
 constexpr int8_t Copter::_failsafe_priorities[7];
 
 
-#if AP_SCRIPTING_ENABLED || AP_EXTERNAL_CONTROL_ENABLED
+#if AP_EXTERNAL_BINDING_ENABLED || AP_EXTERNAL_CONTROL_ENABLED
 #if MODE_GUIDED_ENABLED
 // set target location (for use by external control and scripting)
 bool Copter::set_target_location(const Location& target_loc)
@@ -304,9 +301,9 @@ bool Copter::start_takeoff(const float alt_m)
     return false;
 }
 #endif //MODE_GUIDED_ENABLED
-#endif //AP_SCRIPTING_ENABLED || AP_EXTERNAL_CONTROL_ENABLED
+#endif //AP_EXTERNAL_BINDING_ENABLED || AP_EXTERNAL_CONTROL_ENABLED
 
-#if AP_SCRIPTING_ENABLED
+#if AP_EXTERNAL_BINDING_ENABLED
 #if MODE_GUIDED_ENABLED
 // set target position (for use by scripting)
 bool Copter::set_target_pos_NED(const Vector3f& target_pos_ned_m, bool use_yaw, float yaw_deg, bool use_yaw_rate, float yaw_rate_degs, bool yaw_relative, bool is_terrain_alt)
@@ -384,7 +381,7 @@ bool Copter::set_target_angle_and_climbrate(float roll_deg, float pitch_deg, flo
     Quaternion q;
     q.from_euler(radians(roll_deg),radians(pitch_deg),radians(yaw_deg));
 
-    mode_guided.set_angle(q, Vector3f{}, climb_rate_ms*100, false);
+    mode_guided.set_angle(q, Vector3f{}, climb_rate_ms, false);
     return true;
 }
 
@@ -560,7 +557,7 @@ bool Copter::update_target_location(const Location &old_loc, const Location &new
     return set_target_location(new_loc);
 }
 
-#endif // AP_SCRIPTING_ENABLED
+#endif // AP_EXTERNAL_BINDING_ENABLED
 
 // returns true if vehicle is landing.
 bool Copter::is_landing() const
@@ -612,7 +609,9 @@ void Copter::throttle_loop()
 #endif
 
     // compensate for ground effect (if enabled)
+#if AP_GROUNDEFFECT_ENABLED
     update_ground_effect_detector();
+#endif
     update_ekf_terrain_height_stable();
 }
 
@@ -651,6 +650,8 @@ void Copter::loop_rate_logging()
     if (should_log(MASK_LOG_IMU_FAST)) {
         AP::ins().Write_IMU();
     }
+
+    motors->Log_Write_SPOL();
 }
 
 // ten_hz_logging_loop
@@ -702,8 +703,8 @@ void Copter::ten_hz_logging_loop()
         g2.proximity.log();  // Write proximity sensor distances
 #endif
 #if AP_BEACON_ENABLED
-        g2.beacon.log();
-#endif
+        beacon.log();
+#endif  // AP_BEACON_ENABLED
     }
 #if AP_WINCH_ENABLED
     if (should_log(MASK_LOG_ANY)) {
@@ -851,39 +852,6 @@ void Copter::init_simple_bearing()
 #endif
 }
 
-// update_simple_mode - rotates pilot input if we are in simple mode
-void Copter::update_simple_mode(void)
-{
-    float rollx, pitchx;
-
-    // exit immediately if no new radio frame or not in simple mode
-    if (simple_mode == SimpleMode::NONE || !ap.new_radio_frame) {
-        return;
-    }
-
-    // mark radio frame as consumed
-    ap.new_radio_frame = false;
-
-    // avoid processing bind-time RC values:
-    if (!rc().has_valid_input()) {
-        return;
-    }
-
-    if (simple_mode == SimpleMode::SIMPLE) {
-        // rotate roll, pitch input by -initial simple heading (i.e. north facing)
-        rollx = channel_roll->get_control_in()*simple_cos_yaw - channel_pitch->get_control_in()*simple_sin_yaw;
-        pitchx = channel_roll->get_control_in()*simple_sin_yaw + channel_pitch->get_control_in()*simple_cos_yaw;
-    }else{
-        // rotate roll, pitch input by -super simple heading (reverse of heading to home)
-        rollx = channel_roll->get_control_in()*super_simple_cos_yaw - channel_pitch->get_control_in()*super_simple_sin_yaw;
-        pitchx = channel_roll->get_control_in()*super_simple_sin_yaw + channel_pitch->get_control_in()*super_simple_cos_yaw;
-    }
-
-    // rotate roll, pitch input from north facing to vehicle's perspective
-    channel_roll->set_control_in(rollx*ahrs.cos_yaw() + pitchx*ahrs.sin_yaw());
-    channel_pitch->set_control_in(-rollx*ahrs.sin_yaw() + pitchx*ahrs.cos_yaw());
-}
-
 // update_super_simple_bearing - adjusts simple bearing based on location
 // should be called after home_bearing_rad has been updated
 void Copter::update_super_simple_bearing(bool force_update)
@@ -939,6 +907,13 @@ void Copter::update_altitude()
 }
 
 // vehicle specific waypoint info helpers
+#if AP_MOUNT_ROI_WPNEXT_OFFSET_ENABLED
+bool Copter::get_wp_location(Location &loc) const
+{
+    return flightmode->get_wp(loc);
+}
+#endif  // AP_MOUNT_ROI_WPNEXT_OFFSET_ENABLED
+
 bool Copter::get_wp_distance_m(float &distance) const
 {
     // see GCS_MAVLINK_Copter::send_nav_controller_output()
@@ -963,13 +938,13 @@ bool Copter::get_wp_crosstrack_error_m(float &xtrack_error) const
 }
 
 // get the target earth-frame angular velocities in rad/s (Z-axis component used by some gimbals)
-bool Copter::get_rate_ef_targets(Vector3f& rate_ef_targets) const
+bool Copter::get_rate_ef_targets(Vector3f& rate_ef_targets_rads) const
 {
     // always returns zero vector if landed or disarmed
     if (copter.ap.land_complete) {
-        rate_ef_targets.zero();
+        rate_ef_targets_rads.zero();
     } else {
-        rate_ef_targets = attitude_control->get_rate_ef_targets();
+        rate_ef_targets_rads = attitude_control->get_rate_ef_target_rads();
     }
     return true;
 }
@@ -979,7 +954,6 @@ bool Copter::get_rate_ef_targets(Vector3f& rate_ef_targets) const
  */
 Copter::Copter(void)
     :
-    flight_modes(&g.flight_mode1),
     pos_variance_filt(FS_EKF_FILT_DEFAULT),
     vel_variance_filt(FS_EKF_FILT_DEFAULT),
     flightmode(&mode_stabilize),

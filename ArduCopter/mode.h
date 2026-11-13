@@ -208,6 +208,10 @@ public:
     virtual bool allows_weathervaning() const { return false; }
 #endif
 
+    // Return true if this mode is enabled, used by MAVLink available modes
+    // For example flow hold mode requires optical flow to be enabled
+    virtual bool enabled() const { return true; }
+
 protected:
 
     // helper functions
@@ -401,8 +405,8 @@ public:
     // Returns the throttle level to maintain altitude (excluding takeoff boost).
     float get_non_takeoff_throttle() const;
 
-    // Updates simple/super-simple heading reference based on current yaw and mode.
-    void update_simple_mode();
+    // Rotates roll/pitch pilot input if simple or super simple mode is active.
+    void apply_simple_mode(float &roll, float &pitch) const;
 
     // Requests a mode change with the specified reason; returns true if accepted.
     bool set_mode(Mode::Number mode, ModeReason reason);
@@ -454,7 +458,6 @@ public:
     void exit() override;
     // Called when air mode is enabled via AUX switch; prevents automatic reset to default air_mode state
     void air_mode_aux_changed();
-    bool allows_save_trim() const override { return true; }
     bool allows_flip() const override { return true; }
     bool crash_check_enabled() const override { return false; }
     bool allows_entry_in_rc_failsafe() const override { return false; }
@@ -484,7 +487,7 @@ public:
 
     bool init(bool ignore_checks) override;
     void run() override;
-    void virtual_flybar( float &roll_out, float &pitch_out, float &yaw_out, float pitch_leak, float roll_leak);
+    void virtual_flybar( float &roll_out_rads, float &pitch_out_rads, float &yaw_out_rads, float pitch_leak, float roll_leak);
 
 protected:
 private:
@@ -525,6 +528,7 @@ private:
 
 };
 
+#if MODE_AUTO_ENABLED
 class ModeAuto : public Mode {
 
 public:
@@ -542,7 +546,7 @@ public:
     bool has_manual_throttle() const override { return false; }
     bool allows_arming(AP_Arming::Method method) const override;
     bool is_autopilot() const override { return true; }
-    bool in_guided_mode() const override { return _mode == SubMode::NAVGUIDED || _mode == SubMode::NAV_SCRIPT_TIME; }
+    bool in_guided_mode() const override { return _mode == SubMode::NAV_GUIDED || _mode == SubMode::NAV_SCRIPT_TIME; }
 #if FRAME_CONFIG == HELI_FRAME
     bool allows_inverted() const override { return true; };
 #endif
@@ -558,13 +562,14 @@ public:
 
     // Auto modes
     enum class SubMode : uint8_t {
+        STARTING,       // initial submode; holds position until the mission dispatches the first navigation submode
         TAKEOFF,
         WP,
         LAND,
         RTL,
         CIRCLE_MOVE_TO_EDGE,
         CIRCLE,
-        NAVGUIDED,
+        NAV_GUIDED,
         LOITER,
         LOITER_TO_ALT,
 #if AP_MISSION_NAV_PAYLOAD_PLACE_ENABLED && AC_PAYLOAD_PLACE_ENABLED
@@ -574,22 +579,13 @@ public:
         NAV_ATTITUDE_TIME,
     };
 
-    // set submode.  returns true on success, false on failure
+    // set the auto submode (rechecks the EKF failsafe when leaving NAV_ATTITUDE_TIME)
     void set_submode(SubMode new_submode);
 
     // pause continue in auto mode
     bool pause() override;
     bool resume() override;
     bool paused() const;
-
-    bool loiter_start();
-    void rtl_start();
-    void takeoff_start(const Location& dest_loc);
-    bool wp_start(const Location& dest_loc);
-    void land_start();
-    void circle_movetoedge_start(const Location &circle_center, float radius_m, bool ccw_turn);
-    void circle_start();
-    void nav_guided_start();
 
     bool is_landing() const override;
 
@@ -665,22 +661,29 @@ private:
 
     bool check_for_mission_change();    // detect external changes to mission
 
+    bool loiter_start();
+    void rtl_start();
+    void takeoff_start(const Location& dest_loc);
+    bool wp_start(const Location& dest_loc);
+    void land_start();
+    void circle_movetoedge_start(const Location &circle_center, float radius_m);
+    void circle_start();
+    void nav_guided_start();
+
     void takeoff_run();
     void wp_run();
     void land_run();
     void rtl_run();
-    void circle_run();
     void nav_guided_run();
     void loiter_run();
     void loiter_to_alt_run();
     void nav_attitude_time_run();
 
-    // return the Location portion of a command.  If the command's lat and lon and/or alt are zero the default_loc's lat,lon and/or alt are returned instead
-    Location loc_from_cmd(const AP_Mission::Mission_Command& cmd, const Location& default_loc) const;
+    // get the Location portion of a command.  If the command's lat and lon and/or alt are zero the default_loc's lat,lon and/or alt are returned instead
+    // returns false if the location cannot be determined which only happens if the terrain data is unavailable
+    bool get_loc_from_cmd(const AP_Mission::Mission_Command& cmd, const Location& default_loc, Location& loc) const WARN_IF_UNUSED;
 
-    SubMode _mode = SubMode::TAKEOFF;   // controls which auto controller is run
-
-    bool shift_alt_to_current_alt(Location& target_loc) const;
+    SubMode _mode = SubMode::STARTING;   // controls which auto controller is run
 
     // subtract position controller offsets from target location
     // should be used when the location will be used as a target for the position controller
@@ -690,12 +693,12 @@ private:
     void do_nav_wp(const AP_Mission::Mission_Command& cmd);
     bool set_next_wp(const AP_Mission::Mission_Command& current_cmd, const Location &default_loc);
     void do_land(const AP_Mission::Mission_Command& cmd);
-    void do_loiter_unlimited(const AP_Mission::Mission_Command& cmd);
+    bool do_loiter_unlimited(const AP_Mission::Mission_Command& cmd);
     void do_circle(const AP_Mission::Mission_Command& cmd);
     void do_loiter_time(const AP_Mission::Mission_Command& cmd);
     void do_loiter_to_alt(const AP_Mission::Mission_Command& cmd);
     void do_spline_wp(const AP_Mission::Mission_Command& cmd);
-    void get_spline_from_cmd(const AP_Mission::Mission_Command& cmd, const Location& default_loc, Location& dest_loc, Location& next_dest_loc, bool& next_dest_loc_is_spline);
+    bool get_spline_from_cmd(const AP_Mission::Mission_Command& cmd, const Location& default_loc, Location& dest_loc, Location& next_dest_loc, bool& next_dest_loc_is_spline);
 #if AC_NAV_GUIDED
     void do_nav_guided_enable(const AP_Mission::Mission_Command& cmd);
     void do_guided_limits(const AP_Mission::Mission_Command& cmd);
@@ -716,7 +719,7 @@ private:
 #endif
     void do_payload_place(const AP_Mission::Mission_Command& cmd);
     void do_RTL(void);
-#if AP_SCRIPTING_ENABLED
+#if AP_EXTERNAL_BINDING_ENABLED
     void do_nav_script_time(const AP_Mission::Mission_Command& cmd);
 #endif
     void do_nav_attitude_time(const AP_Mission::Mission_Command& cmd);
@@ -738,7 +741,7 @@ private:
     bool verify_nav_guided_enable(const AP_Mission::Mission_Command& cmd);
 #endif
     bool verify_nav_delay(const AP_Mission::Mission_Command& cmd);
-#if AP_SCRIPTING_ENABLED
+#if AP_EXTERNAL_BINDING_ENABLED
     bool verify_nav_script_time();
 #endif
     bool verify_nav_attitude_time(const AP_Mission::Mission_Command& cmd);
@@ -764,18 +767,18 @@ private:
     uint32_t condition_start;
 
     // Land within Auto state
-    enum class State {
+    enum class LandState {
         FlyToLocation = 0,
         Descending = 1
     };
-    State state = State::FlyToLocation;
+    LandState land_state = LandState::FlyToLocation;
 
     bool waiting_to_start;  // true if waiting for vehicle to be armed or EKF origin before starting mission
 
     // True if we have entered AUTO to perform a DO_LAND_START landing sequence and we should report as AUTO RTL mode
     bool auto_RTL;
 
-#if AP_SCRIPTING_ENABLED
+#if AP_EXTERNAL_BINDING_ENABLED
     // nav_script_time command variables
     struct {
         bool done;          // true once lua script indicates it has completed
@@ -806,8 +809,16 @@ private:
         float down;   // desired speed downwards in m/s. 0 if unset
     } desired_speed_override_ms;
 
-    float circle_last_num_complete;
+    // LOITER_TURNS state
+    struct {
+        float turns_signed;         // signed number of turns for the active LOITER_TURNS orbit (sign selects direction)
+        float radius_m;             // commanded LOITER_TURNS radius (0 = panorama; circle_nav's get_radius_m() falls back to the parameter so cannot express zero)
+        uint16_t turns_reported;    // number of whole orbit turns already announced to the GCS
+        uint32_t panorama_start_ms; // time the radius-0 panorama started
+        float panorama_rate_rads;   // yaw rate the radius-0 panorama was commanded at
+    } circle;
 };
+#endif  // MODE_AUTO_ENABLED
 
 #if AUTOTUNE_ENABLED
 /*
@@ -954,8 +965,8 @@ private:
 class ModeFlip : public Mode {
 
 public:
-    // inherit constructor
-    using Mode::Mode;
+    // need a constructor
+    ModeFlip(void);
     Number mode_number() const override { return Number::FLIP; }
 
     bool init(bool ignore_checks) override;
@@ -967,6 +978,10 @@ public:
     bool is_autopilot() const override { return false; }
     bool crash_check_enabled() const override { return false; }
 
+    void abandon_flip();
+
+    static const struct AP_Param::GroupInfo var_info[];
+
 protected:
 
     const char *name() const override { return "Flip"; }
@@ -974,7 +989,6 @@ protected:
 
 private:
 
-    // Flip
     Vector3f orig_attitude_euler_rad;   // original vehicle attitude before flip
 
     enum class FlipState : uint8_t {
@@ -985,11 +999,15 @@ private:
         Recover,
         Abandon
     };
+    bool abandon_requested;
     FlipState _state;                   // current state of flip
     Mode::Number  orig_control_mode;    // flight mode when flip was initiated
-    uint32_t start_time_ms;             // time since flip began
+    uint32_t start_time_ms;
     int8_t roll_dir;                    // roll direction (-1 = roll left, 1 = roll right)
     int8_t pitch_dir;                   // pitch direction (-1 = pitch forward, 1 = pitch back)
+    AP_Float flip_rate_dps;              // rotational rate during flip
+
+    bool input_is_high_magnitude(RC_Channel &input) const;
 };
 
 
@@ -1016,6 +1034,9 @@ public:
         return !must_navigate;
     }
     bool allows_flip() const override { return true; }
+
+    // Return true if this mode is enabled, used by MAVLink available modes
+    bool enabled() const override;
 
     static const struct AP_Param::GroupInfo var_info[];
 
@@ -1224,15 +1245,16 @@ private:
     void set_yaw_state_rad(bool use_yaw, float yaw_rad, bool use_yaw_rate, float yaw_rate_rads, bool relative_angle);
 
     // controls which controller is run (pos or vel):
-    static SubMode guided_mode;
-    static bool send_notification;     // used to send one time notification to ground station
+    SubMode guided_mode = SubMode::TakeOff;
+     // used to send one time notification to ground station:
+    bool send_notification;
     static bool takeoff_complete;      // true once takeoff has completed (used to trigger retracting of landing gear)
 
     // guided mode is paused or not
-    static bool _paused;
+    bool _paused;
 };
 
-#if AP_SCRIPTING_ENABLED
+#if AP_EXTERNAL_BINDING_ENABLED
 // Mode which behaves as guided with custom mode number and name
 class ModeGuidedCustom : public ModeGuided {
 public:
@@ -1307,6 +1329,7 @@ public:
     bool controlling_position() const { return control_position; }
 
     void set_land_pause(bool new_value) { land_pause = new_value; }
+    bool use_pilot_yaw() const override;
 
     // parameter accessors
     float get_land_speed_ms() const { return land_speed_ms.get(); }
@@ -1394,8 +1417,8 @@ private:
 class ModePosHold : public Mode {
 
 public:
-    // inherit constructor
-    using Mode::Mode;
+    // need a constructor for parameters
+    ModePosHold(void);
     Number mode_number() const override { return Number::POSHOLD; }
 
     bool init(bool ignore_checks) override;
@@ -1409,12 +1432,21 @@ public:
     bool allows_autotune() const override { return true; }
     bool allows_auto_trim() const override { return true; }
 
+    // convert parameters
+    void convert_params();
+
+    // mode specific parameter variable table
+    static const struct AP_Param::GroupInfo var_info[];
+
 protected:
 
     const char *name() const override { return "Position Hold"; }
     const char *name4() const override { return "PHLD"; }
 
 private:
+
+    // parameters
+    AP_Float brake_angle_max_deg;   // max lean angle (in degrees) during braking
 
     void update_pilot_lean_angle_rad(float &lean_angle_filtered_rad, float &lean_angle_raw_rad);
     float mix_controls(float mix_ratio, float first_control, float second_control);
@@ -1514,15 +1546,16 @@ public:
     enum class SubMode : uint8_t {
         STARTING,
         INITIAL_CLIMB,
-        RETURN_HOME,
-        LOITER_AT_HOME,
+        FLY_TO_RETURN_POINT,
+        HOLD_AT_RETURN_POINT,
         FINAL_DESCENT,
         LAND
     };
-    SubMode state() { return _state; }
 
-    // this should probably not be exposed
-    bool state_complete() const { return _state_complete; }
+    // true once RTL has completed its final stage: the final descent has reached
+    // RTL_ALT_FINAL, or the vehicle has landed and spooled to ground idle;
+    // used by ModeAuto::verify_RTL
+    bool is_complete() const;
 
     virtual bool is_landing() const override;
 
@@ -1566,11 +1599,18 @@ protected:
 
 private:
 
+    // advance_state - move to the next stage when the current one is complete
+    void advance_state();
+
+    // set_submode - performs all normal stage changes; sets _state, clears _state_complete and runs the stage's entry init
+    void set_submode(SubMode submode);
+
     void climb_start();
-    void return_start();
+    bool return_start();
+    bool run_wp_controllers();
     void climb_return_run();
-    void loiterathome_start();
-    void loiterathome_run();
+    void hold_at_return_point_start();
+    void hold_at_return_point_run();
     void build_path();
     void compute_return_target();
 
@@ -1580,7 +1620,7 @@ private:
     AP_Float alt_final_m;
     AP_Float climb_min_m;
 
-    SubMode _state = SubMode::INITIAL_CLIMB;  // records state of rtl (initial climb, returning home, etc)
+    SubMode _state = SubMode::STARTING;
     bool _state_complete = false; // set to true if the current state is completed
 
     struct {
@@ -1598,8 +1638,8 @@ private:
         TERRAINDATABASE = 2
     };
 
-    // Loiter timer - Records how long we have been in loiter
-    uint32_t _loiter_start_time;
+    // time the current stage was entered (set by set_submode); used by the hold timer
+    uint32_t _stage_start_ms;
 
     bool terrain_following_allowed;
 
@@ -1634,6 +1674,9 @@ public:
     bool is_landing() const override;
     bool use_pilot_yaw() const override;
 
+    // Return true if this mode is enabled, used by MAVLink available modes
+    bool enabled() const override;
+
     // Safe RTL states
     enum class SubMode : uint8_t {
         WAIT_FOR_PATH_CLEANUP,
@@ -1656,11 +1699,11 @@ protected:
 
 private:
 
+    void set_submode(SubMode submode);
     void wait_cleanup_run();
     void path_follow_run();
     void pre_land_position_run();
-    void land();
-    SubMode smart_rtl_state = SubMode::PATH_FOLLOW;
+    SubMode smart_rtl_state = SubMode::WAIT_FOR_PATH_CLEANUP;
 
     // keep track of how long we have failed to get another return
     // point while following our path home.  If we take too long we
@@ -1763,6 +1806,9 @@ public:
     bool allows_arming(AP_Arming::Method method) const override { return false; };
     bool is_autopilot() const override { return false; }
     bool logs_attitude() const override { return true; }
+
+    // Return true if this mode is enabled, used by MAVLink available modes
+    bool enabled() const override;
 
     void set_magnitude(float input) { waveform_magnitude.set(input); }
 
@@ -1903,6 +1949,9 @@ public:
     void output_to_motors() override;
     bool allows_entry_in_rc_failsafe() const override { return false; }
 
+    // Return true if this mode is enabled, used by MAVLink available modes
+    bool enabled() const override;
+
 protected:
     const char *name() const override { return "Turtle"; }
     const char *name4() const override { return "TRTL"; }
@@ -1968,6 +2017,9 @@ public:
     bool has_manual_throttle() const override { return false; }
     bool allows_arming(AP_Arming::Method method) const override { return false; }
     bool is_autopilot() const override { return true; }
+
+    // Return true if this mode is enabled, used by MAVLink available modes
+    bool enabled() const override;
 
 protected:
 

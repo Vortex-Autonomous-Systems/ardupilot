@@ -113,6 +113,9 @@ public:
     /// pre_arm_check - returns true if all pre-takeoff checks have completed successfully
     bool pre_arm_check(char *failure_msg, const uint8_t failure_msg_len) const;
 
+    // used by AP_Arming for pre-arm checks
+    bool terrain_database_required() const;
+
     ///
     /// methods to check we are within the boundaries and recover
     ///
@@ -121,8 +124,8 @@ public:
     /// disabled_fences can be used to disable fences for certain conditions (e.g. landing)
     uint8_t check(bool disable_auto_fence = false);
 
-    // returns true if the destination is within fence (used to reject waypoints outside the fence)
-    bool check_destination_within_fence(const class Location& loc);
+    // returns true if the location is within fence (used to reject waypoints outside the fence)
+    bool check_location_within_fence(const class Location& loc);
 
     /// get_breaches - returns bit mask of the fence types that have been breached
     uint8_t get_breaches() const { return _breached_fences; }
@@ -151,11 +154,29 @@ public:
     /// get_action - getter for user requested action on limit breach
     Action get_action() const { return _action; }
 
-    /// get_safe_alt - returns maximum safe altitude (i.e. alt_max - margin)
+    /// get_relative_safe_alt_max_m - returns maximum safe altitude in relative frame
+    float get_relative_safe_alt_max_m() const { return _safe_relhome_alt_max_m ; }
+
+    /// get_relative_safe_alt_min_m - returns the minimum safe altitude in relative frame
+    float get_relative_safe_alt_min_m() const { return _safe_relhome_alt_min_m ; }
+
+    /// get_safe_alt_max_m - returns maximum safe altitude in alt max frame (i.e. alt_max - margin)
     float get_safe_alt_max_m() const { return _alt_max_m - _margin_m; }
 
-    /// get_safe_alt_min_m - returns the minimum safe altitude (i.e. alt_min + margin)
+    /// get_safe_alt_min_m - returns the minimum safe altitude in alt min frame (i.e. alt_min + margin)
     float get_safe_alt_min_m() const { return _alt_min_m + _margin_m; }
+
+    /// get_safe_alt_max_m_and_frame - returns maximum safe altitude and its frame via references
+    void get_safe_alt_max_m_and_frame(float &alt, uint8_t &frame) const {
+        alt = _alt_max_m - _margin_m;
+        frame = (uint8_t)_alt_max_type.get();
+    }
+
+    /// get_safe_alt_min_m_and_frame - returns minimum safe altitude and its frame via references
+    void get_safe_alt_min_m_and_frame(float &alt, uint8_t &frame) const {
+        alt = _alt_min_m + _margin_m;
+        frame = (uint8_t)_alt_min_type.get();
+    }
 
     /// get_radius_m - returns the fence radius in meters
     float get_radius_m() const { return _circle_radius_m.get(); }
@@ -193,8 +214,8 @@ public:
         INCLUSION_UNION = 1U << 1,
         NOTIFY_MARGIN_BREACH = 1U << 2,
     };
-    static bool option_enabled(OPTIONS opt, const AP_Int16 &options) {
-        return (options.get() & int16_t(opt)) != 0;
+    static bool option_enabled(OPTIONS opt, const AP_UInt16 &options) {
+        return (options & uint16_t(opt)) != 0;
     }
     bool option_enabled(OPTIONS opt) const {
         return option_enabled(opt, _options);
@@ -207,6 +228,15 @@ public:
         return _poly_loader.failed_sdcard_storage();
     }
 #endif
+
+    // get altitude in alt max frame
+    bool get_alt_in_alt_max_frame_m(float &alt) const { return get_alt_in_frame_m(_alt_max_type, alt); }
+    // get altitude in alt min frame
+    bool get_alt_in_alt_min_frame_m(float &alt) const { return get_alt_in_frame_m(_alt_min_type, alt); }
+    // get alt max frame
+    Location::AltFrame get_alt_max_frame() const { return (Location::AltFrame)_alt_max_type.get(); }
+    // get alt min frame
+    Location::AltFrame get_alt_min_frame() const { return (Location::AltFrame)_alt_min_type.get(); }
 
 private:
     static AC_Fence *_singleton;
@@ -223,6 +253,9 @@ private:
     /// check_fence_circle - true if circle fence has been newly breached
     bool check_fence_circle();
 
+    /// update safe alt min
+    void update_safe_alt_min();
+
     /// record_breach - update breach bitmask, time and count
     void record_breach(uint8_t fence_type);
 
@@ -238,6 +271,9 @@ private:
     /// retrieve the current NED position relative to home
     bool get_current_position_NED(Vector3f& currpos) const;
 
+    // get altitude in the supplied frame
+    bool get_alt_in_frame_m(Location::AltFrame alt_frame, float &alt) const;
+
     // additional checks for the different fence types:
     bool pre_arm_check_polygon(char *failure_msg, const uint8_t failure_msg_len) const;
     bool pre_arm_check_circle(char *failure_msg, const uint8_t failure_msg_len) const;
@@ -251,7 +287,7 @@ private:
     AP_Int8         _enabled;           // overall feature control
     AP_Int8         _auto_enabled;      // top level flag for auto enabling fence
     uint8_t         _last_auto_enabled; // value of auto_enabled last time we checked
-    AP_Int8         _configured_fences; // bit mask holding which fences are enabled
+    AP_UInt8        _configured_fences; // bit mask holding which fences are enabled
     AP_Enum<Action> _action;            // recovery action specified by user
     AP_Float        _alt_max_m;         // altitude upper limit in meters
     AP_Float        _alt_min_m;         // altitude lower limit in meters
@@ -261,8 +297,10 @@ private:
     AP_Int8         _total;             // number of polygon points saved in eeprom
     AP_Int8         _ret_rally;         // return to fence return point or rally point/home
     AP_Int16        _ret_altitude;      // return to this altitude
-    AP_Int16        _options;           // options bitmask, see OPTIONS enum
+    AP_UInt16       _options;           // options bitmask, see OPTIONS enum
     AP_Float        _notify_freq;       // margin notification frequency
+    AP_Enum<Location::AltFrame> _alt_max_type;  // altitude max frame type
+    AP_Enum<Location::AltFrame> _alt_min_type;  // altitude min frame type
 
     // backup fences
     float           _alt_max_backup_m;          // backup altitude upper limit in meters used to refire the breach if the vehicle continues to move further away
@@ -282,6 +320,8 @@ private:
     // other internal variables
     float           _home_distance_m;   // distance from home in meters (provided by main code)
     float           _fence_distance_m;  // distance to the nearest fence
+    float           _safe_relhome_alt_max_m ;    // calculated safe alt max
+    float           _safe_relhome_alt_min_m ;    // calculated safe alt min
 
     // breach information
     uint8_t         _breached_fences;       // bitmask holding the fence types that were breached (i.e. AC_FENCE_TYPE_ALT_MIN, AC_FENCE_TYPE_CIRCLE)

@@ -46,7 +46,6 @@ void Tracker::init_ardupilot()
 #endif
 
     // initialise rc channels including setting mode
-    rc().convert_options(RC_Channel::AUX_FUNC::ARMDISARM_UNUSED, RC_Channel::AUX_FUNC::ARMDISARM);
     rc().init();
 
     // initialise servos
@@ -124,8 +123,7 @@ bool Tracker::set_home_to_current_location(bool lock)
 bool Tracker::set_home(const Location &temp, bool lock)
 {
     // check EKF origin has been set
-    Location ekf_origin;
-    if (ahrs.get_origin(ekf_origin)) {
+    if (ahrs.has_origin()) {
         if (!ahrs.set_home(temp)) {
             return false;
         }
@@ -177,6 +175,8 @@ void Tracker::set_mode(Mode &newmode, const ModeReason reason)
         return;
     }
     mode = &newmode;
+
+    mode->enter();
 
     if (mode->requires_armed_servos()) {
         arm_servos();

@@ -88,6 +88,39 @@
 
 #define NORETURN __attribute__ ((noreturn))
 
+/*
+  are we being built with the address sanitizer?  gcc and clang spell
+  this differently and neither understands the other's form, so the
+  __has_feature test has to be nested - on gcc a flat
+  "defined(__has_feature) && __has_feature(...)" is a syntax error
+  rather than a short circuit
+ */
+#if defined(__has_feature)
+#if __has_feature(address_sanitizer)
+#define AP_ADDRESS_SANITIZER_ENABLED 1
+#endif  // __has_feature(address_sanitizer)
+#endif  // defined(__has_feature)
+#if defined(__SANITIZE_ADDRESS__)
+#define AP_ADDRESS_SANITIZER_ENABLED 1
+#endif  // defined(__SANITIZE_ADDRESS__)
+#ifndef AP_ADDRESS_SANITIZER_ENABLED
+// we build with -Werror=undef, so this must always have a value
+#define AP_ADDRESS_SANITIZER_ENABLED 0
+#endif  // AP_ADDRESS_SANITIZER_ENABLED
+
+#if AP_ADDRESS_SANITIZER_ENABLED
+#include <sanitizer/lsan_interface.h>
+/*
+  mark one allocation as deliberately kept for the life of the process.
+  Prefer this to a suppression naming the function which made it: a
+  suppression matches every frame of the allocation stack, so it also
+  hides everything else allocated below that function
+ */
+#define LSAN_IGNORE_OBJECT(ptr) __lsan_ignore_object(ptr)
+#else
+#define LSAN_IGNORE_OBJECT(ptr) (void)(ptr)
+#endif  // AP_ADDRESS_SANITIZER_ENABLED
+
 /* Declare and implement const and non-const versions of the array subscript
  * operator. The object is treated as an array of type_ values. */
 #define DEFINE_BYTE_ARRAY_METHODS                                                                   \
@@ -169,15 +202,31 @@ template<typename s, size_t t> struct assert_storage_size {
 */
 bool is_bounded_int32(int32_t value, int32_t lower_bound, int32_t upper_bound);
 
-bool hex_to_uint8(uint8_t a, uint8_t &res);  // return the uint8 value of an ascii hex character
+bool WARN_IF_UNUSED hex_char_to_nibble(uint8_t a, uint8_t &res);  // return the uint8 value of an ascii hex character
+
+/*
+  decode two hex characters into a byte.
+  e.g. hex_twochars_to_uint8("3F", res) -> res = 0x3F
+ */
+bool WARN_IF_UNUSED hex_twochars_to_uint8(const char s[2], uint8_t &res);
+
+/*
+  decode num_pairs pairs of hex characters into bytes at out[]
+ */
+bool WARN_IF_UNUSED hex_charpairs_to_uint8s(const char *s, uint8_t num_pairs, uint8_t *out);
+
+/*
+  decode len hex characters into a uint32_t, treating each character
+  as a nibble (most-significant first).
+  e.g. hex_chars_to_uint32("1A2B", 4, out) -> out = 0x1A2B
+ */
+bool WARN_IF_UNUSED hex_chars_to_uint32(const char *s, uint8_t len, uint32_t &out);
 
 /*
   strncpy without the warning for not leaving room for nul termination
  */
 size_t strncpy_noterm(char *dest, const char *src, size_t n);
 
-// return the numeric value of an ascii hex character
-uint8_t char_to_hex(char a);
 
 /*
   Bit manipulation

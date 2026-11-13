@@ -2,7 +2,6 @@
 
 #include <hwdef.h>
 
-#define HAL_BOARD_NAME "Linux"
 #define HAL_CPU_CLASS HAL_CPU_CLASS_1000
 #define HAL_MEM_CLASS HAL_MEM_CLASS_1000
 #define HAL_OS_SOCKETS 1
@@ -100,10 +99,6 @@
 #define HAL_INS_RATE_LOOP 1
 #endif
 
-#ifndef HAL_LINUX_GPIO_AERO_ENABLED
-#define HAL_LINUX_GPIO_AERO_ENABLED 0
-#endif
-
 #ifndef HAL_LINUX_GPIO_BBB_ENABLED
 #define HAL_LINUX_GPIO_BBB_ENABLED 0
 #endif
@@ -150,4 +145,8 @@
 
 #ifndef HAL_LINUX_GPIO_PB2_ENABLED
 #define HAL_LINUX_GPIO_PB2_ENABLED 0
+#endif
+
+#ifndef HAL_LINUX_SERIALLED_ENABLED
+#define HAL_LINUX_SERIALLED_ENABLED 0
 #endif

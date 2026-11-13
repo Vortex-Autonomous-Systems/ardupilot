@@ -21,7 +21,7 @@
 #include <AP_Common/AP_Common.h>
 #include <AP_Param/AP_Param.h>
 #include <GCS_MAVLink/GCS_config.h>
-#if HAL_GCS_ENABLED
+#if HAL_MAVLINK_BINDINGS_ENABLED
 #include <GCS_MAVLink/GCS_MAVLink.h>
 #endif
 #include <AP_Math/AP_Math.h>
@@ -90,7 +90,7 @@ public:
     // -1 means failed, 0 means unknown, 1 is worst, 100 is best
     int8_t quality() const;
 
-#if HAL_GCS_ENABLED
+#if HAL_MAVLINK_BINDINGS_ENABLED
     // consume vision_position_delta mavlink messages
     void handle_vision_position_delta_msg(const mavlink_message_t &msg);
 #endif
@@ -104,7 +104,8 @@ public:
     // general purpose methods to consume velocity estimate data and send to EKF
     // velocity in NED meters per second
     // quality of -1 means failed, 0 means unknown, 1 is worst, 100 is best
-    void handle_vision_speed_estimate(uint64_t remote_time_us, uint32_t time_ms, const Vector3f &vel, uint8_t reset_counter, int8_t quality);
+    // vel_err is the velocity error (m/s), 0 means unknown
+    void handle_vision_speed_estimate(uint64_t remote_time_us, uint32_t time_ms, const Vector3f &vel, float vel_err, uint8_t reset_counter, int8_t quality);
 
     // request sensor's yaw be aligned with vehicle's AHRS/EKF attitude
     void request_align_yaw_to_ahrs();

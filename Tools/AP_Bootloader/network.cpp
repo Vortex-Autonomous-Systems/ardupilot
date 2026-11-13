@@ -306,7 +306,7 @@ void BL_Network::web_server_trampoline(void *ctx)
 #define STR(x) STR_HELPER(x)
 
 BL_Network::web_var BL_Network::variables[] = {
-    { "BOARD_NAME", CHIBIOS_BOARD_NAME },
+    { "BOARD_NAME", HAL_BOARD_NAME },
     { "BOARD_ID", STR(APJ_BOARD_ID)  },
     { "FLASH_SIZE", STR(BOARD_FLASH_SIZE)  },
 };
@@ -632,9 +632,9 @@ void BL_Network::init()
 }
 
 /*
-  save IP address from AP_Periph
+  restore IP address stashed away by AP_Periph
  */
-void BL_Network::save_comms_ip(void)
+void BL_Network::restore_comms_ip(void)
 {
     struct app_bootloader_comms *comms = (struct app_bootloader_comms *)HAL_RAM0_START;
     if (comms->magic == APP_BOOTLOADER_COMMS_MAGIC && comms->ip != 0) {

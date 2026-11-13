@@ -13,11 +13,17 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "AP_Motors_config.h"
+
+#if AP_MOTORS_ENABLED
+
 #include "AP_Motors_Class.h"
 #include <AP_HAL/AP_HAL.h>
 #include <SRV_Channel/SRV_Channel.h>
 #include <GCS_MAVLink/GCS.h>
 #include <AP_Notify/AP_Notify.h>
+#include <AP_Logger/AP_Logger.h>
+#include <cstdint>
 
 #define AP_MOTORS_SLEW_FILTER_CUTOFF 50.0f
 
@@ -58,7 +64,7 @@ void AP_Motors::get_frame_and_type_string(char *buffer, uint8_t buflen) const
     const char *frame_str = get_frame_string();
     const char *type_str = get_type_string();
     if (type_str != nullptr && strlen(type_str)
-#if AP_SCRIPTING_ENABLED
+#if AP_EXTERNAL_BINDING_ENABLED
         && custom_frame_string == nullptr
 #endif
     ) {
@@ -76,13 +82,6 @@ void AP_Motors::armed(bool arm)
         if (!arm) {
             save_params_on_disarm();
         }
-    }
-};
-
-void AP_Motors::set_desired_spool_state(DesiredSpoolState spool)
-{
-    if (_armed || (spool == DesiredSpoolState::SHUT_DOWN)) {
-        _spool_desired = spool;
     }
 };
 
@@ -225,7 +224,7 @@ void AP_Motors::add_motor_num(int8_t motor_num)
     }
 }
 
-#if AP_SCRIPTING_ENABLED
+#if AP_EXTERNAL_BINDING_ENABLED
 void AP_Motors::set_external_limits(bool roll, bool pitch, bool yaw, bool throttle_lower, bool throttle_upper)
 {
     external_limits.roll = roll;
@@ -259,7 +258,7 @@ bool AP_Motors::is_digital_pwm_type() const
 // return string corresponding to frame_class
 const char* AP_Motors::get_frame_string() const
 {
-#if AP_SCRIPTING_ENABLED
+#if AP_EXTERNAL_BINDING_ENABLED
     if (custom_frame_string != nullptr) {
         return custom_frame_string;
     }
@@ -267,7 +266,7 @@ const char* AP_Motors::get_frame_string() const
     return _get_frame_string();
 }
 
-#if AP_SCRIPTING_ENABLED
+#if AP_EXTERNAL_BINDING_ENABLED
 // set custom frame string
 void AP_Motors::set_frame_string(const char * str) {
     if (custom_frame_string != nullptr) {
@@ -278,6 +277,31 @@ void AP_Motors::set_frame_string(const char * str) {
     if (custom_frame_string != nullptr) {
         strncpy(custom_frame_string, str, len);
     }
+}
+#endif
+
+#if HAL_LOGGING_ENABLED
+void AP_Motors::Log_Write_SPOL() {
+
+    const bool spool_state_changed{_spool_state != _logged_spool_state};
+    const bool des_spool_state_changed{_spool_desired != _logged_spool_desired};
+
+    // Log only changes.
+    if (!spool_state_changed && !des_spool_state_changed) {
+        return;
+    }
+
+    _logged_spool_state = _spool_state;
+    _logged_spool_desired = _spool_desired;
+
+    const struct log_SPOL pkt {
+        LOG_PACKET_HEADER_INIT(LOG_SPOL_MSG),
+        time_us         : AP_HAL::micros64(),
+        spool_state     : (uint8_t)_spool_state,
+        des_spool_state : (uint8_t)_spool_desired
+    };
+    AP::logger().WriteBlock(&pkt, sizeof(pkt));
+
 }
 #endif
 
@@ -310,7 +334,23 @@ bool AP_Motors::motor_test_checks(size_t buflen, char *buffer) const
     // Must pass base class arming checks (the function above)
     // Do not run frame specific arming checks as motor test is less strict
     // For example not all the outputs have to be assigned
-    return AP_Motors::arming_checks(buflen, buffer);
+    if (!AP_Motors::arming_checks(buflen, buffer)) {
+        return false;
+    }
+
+    // check if safety switch has been pushed
+    if (hal.util->safety_switch_state() == AP_HAL::Util::SAFETY_DISARMED) {
+        hal.util->snprintf(buffer, buflen, "Safety switch");
+        return false;
+    }
+
+    // check E-Stop is not active
+    if (SRV_Channels::get_emergency_stop()) {
+        hal.util->snprintf(buffer, buflen, "Motor Emergency Stopped");
+        return false;
+    }
+
+    return true;
 }
 
 // set all limits
@@ -341,3 +381,5 @@ namespace AP {
         return AP_Motors::get_singleton();
     }
 }
+
+#endif  // AP_MOTORS_ENABLED

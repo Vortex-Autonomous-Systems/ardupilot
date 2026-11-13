@@ -47,7 +47,7 @@ void ModeAuto::update()
     // check if mission exists (due to being cleared while disarmed in AUTO,
     // if no mission, then stop...needs mode change out of AUTO, mission load,
     // and change back to AUTO to run a mission at this point
-    if (!hal.util->get_soft_armed() && !mission.present()) {
+    if (!rover.arming.is_armed_and_safety_off() && !mission.present()) {
         start_stop();
     }
     // start or update mission
@@ -205,23 +205,23 @@ float ModeAuto::nav_bearing() const
 }
 
 // return cross track error (i.e. vehicle's distance from the line between waypoints)
-float ModeAuto::crosstrack_error() const
+float ModeAuto::crosstrack_error_m() const
 {
     switch (_submode) {
     case SubMode::WP:
-        return g2.wp_nav.crosstrack_error();
+        return g2.wp_nav.crosstrack_error_m();
     case SubMode::HeadingAndSpeed:
     case SubMode::Stop:
         return 0.0f;
     case SubMode::RTL:
-        return rover.mode_rtl.crosstrack_error();
+        return rover.mode_rtl.crosstrack_error_m();
     case SubMode::Loiter:
-        return rover.mode_loiter.crosstrack_error();
+        return rover.mode_loiter.crosstrack_error_m();
     case SubMode::Guided:
     case SubMode::NavScriptTime:
-        return rover.mode_guided.crosstrack_error();
+        return rover.mode_guided.crosstrack_error_m();
     case SubMode::Circle:
-        return g2.mode_circle.crosstrack_error();
+        return g2.mode_circle.crosstrack_error_m();
     }
 
     // this line should never be reached
@@ -252,7 +252,7 @@ float ModeAuto::get_desired_lat_accel() const
     return 0.0f;
 }
 
-// return distance (in meters) to destination
+// return straight-line distance (in meters) to destination
 float ModeAuto::get_distance_to_destination() const
 {
     switch (_submode) {
@@ -349,24 +349,24 @@ bool ModeAuto::reached_destination() const
 }
 
 // set desired speed in m/s
-bool ModeAuto::set_desired_speed(float speed)
+bool ModeAuto::set_desired_speed(float speed_ms)
 {
     switch (_submode) {
     case SubMode::WP:
     case SubMode::Stop:
-        return g2.wp_nav.set_speed_max(speed);
+        return g2.wp_nav.set_speed_max(speed_ms);
     case SubMode::HeadingAndSpeed:
-        _desired_speed = speed;
+        _desired_speed = speed_ms;
         return true;
     case SubMode::RTL:
-        return rover.mode_rtl.set_desired_speed(speed);
+        return rover.mode_rtl.set_desired_speed(speed_ms);
     case SubMode::Loiter:
-        return rover.mode_loiter.set_desired_speed(speed);
+        return rover.mode_loiter.set_desired_speed(speed_ms);
     case SubMode::Guided:
     case SubMode::NavScriptTime:
-        return rover.mode_guided.set_desired_speed(speed);
+        return rover.mode_guided.set_desired_speed(speed_ms);
     case SubMode::Circle:
-        return g2.mode_circle.set_desired_speed(speed);
+        return g2.mode_circle.set_desired_speed(speed_ms);
     }
     return false;
 }
@@ -382,7 +382,7 @@ void ModeAuto::start_RTL()
 // lua scripts use this to retrieve the contents of the active command
 bool ModeAuto::nav_script_time(uint16_t &id, uint8_t &cmd, float &arg1, float &arg2, int16_t &arg3, int16_t &arg4)
 {
-#if AP_SCRIPTING_ENABLED
+#if AP_EXTERNAL_BINDING_ENABLED
     if (_submode == SubMode::NavScriptTime) {
         id = nav_scripting.id;
         cmd = nav_scripting.command;
@@ -399,7 +399,7 @@ bool ModeAuto::nav_script_time(uint16_t &id, uint8_t &cmd, float &arg1, float &a
 // lua scripts use this to indicate when they have complete the command
 void ModeAuto::nav_script_time_done(uint16_t id)
 {
-#if AP_SCRIPTING_ENABLED
+#if AP_EXTERNAL_BINDING_ENABLED
     if ((_submode == SubMode::NavScriptTime) && (id == nav_scripting.id)) {
         nav_scripting.done = true;
     }
@@ -497,7 +497,7 @@ void ModeAuto::send_guided_position_target()
         guided_target.last_sent_ms = now_ms;
 
         // get system id and component id of offboard navigation system
-        uint8_t sysid;
+        uint32_t sysid;
         uint8_t compid;
         mavlink_channel_t chan;
         if (GCS_MAVLINK::find_by_mavtype(MAV_TYPE_ONBOARD_CONTROLLER, sysid, compid, chan)) {
@@ -539,7 +539,7 @@ bool ModeAuto::start_command(const AP_Mission::Mission_Command& cmd)
         do_nav_delay(cmd);
         break;
 
-#if AP_SCRIPTING_ENABLED
+#if AP_EXTERNAL_BINDING_ENABLED
     case MAV_CMD_NAV_SCRIPT_TIME:
         do_nav_script_time(cmd);
         break;
@@ -575,9 +575,7 @@ bool ModeAuto::start_command(const AP_Mission::Mission_Command& cmd)
     case MAV_CMD_DO_SET_ROI:
         if (!cmd.content.location.initialised()) {
             // switch off the camera tracking if enabled
-            if (rover.camera_mount.get_mode() == MAV_MOUNT_MODE_GPS_POINT) {
-                rover.camera_mount.set_mode_to_default();
-            }
+            rover.camera_mount.clear_roi_target();
         } else {
             // send the command to the camera mount
             rover.camera_mount.set_roi_target(cmd.content.location);
@@ -681,7 +679,7 @@ bool ModeAuto::verify_command(const AP_Mission::Mission_Command& cmd)
     case MAV_CMD_NAV_DELAY:
         return verify_nav_delay(cmd);
 
-#if AP_SCRIPTING_ENABLED
+#if AP_EXTERNAL_BINDING_ENABLED
     case MAV_CMD_NAV_SCRIPT_TIME:
         return verify_nav_script_time();
 #endif
@@ -1021,7 +1019,7 @@ void ModeAuto::do_guided_limits(const AP_Mission::Mission_Command& cmd)
         cmd.content.guided_limits.horiz_max);
 }
 
-#if AP_SCRIPTING_ENABLED
+#if AP_EXTERNAL_BINDING_ENABLED
 // start accepting position, velocity and acceleration targets from lua scripts
 void ModeAuto::do_nav_script_time(const AP_Mission::Mission_Command& cmd)
 {

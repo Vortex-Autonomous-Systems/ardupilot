@@ -19,9 +19,11 @@ Visit [Accton-IoT Godwit](https://www.accton-iot.com/godwit/) for more informati
 ### **Sensors**
 
 - Bosch BMI088 (vibration isolated)
-- TDK InvenSense ICM-42688-P x 2 (one vibration isolated)
+- Two of ICM-42688-P / ICM-45686 / ICM-56686 / LSM6DSK320X (one vibration isolated)
 - TDK Barometric Pressure and Temperature Sensor CP-20100 x 2 (one vibration isolated)
 - PNI RM3100 Geomagnetic Sensor (vibration isolated)
+
+INS_ENABLE_MASK bits follow the IMU probe order, and a bit is only used by a probe that actually runs. The heated SPI2 IMU is probed as an ICM first (bit 0) and as an LSM6DSK320X second; the second probe is skipped if the first one detects a sensor. With an ICM on SPI2 and bit 0 set, bits 0-3 are SPI2, BMI088, SPI1 ICM and SPI1 LSM6DSK320X. If an LSM6DSK320X is fitted on SPI2, or bit 0 is cleared, the SPI2 LSM6DSK320X probe takes bit 1 and BMI088 and SPI1 move up one bit (bits 2-4). To disable the heated SPI2 IMU and keep the others, use a mask such as 0x1C.
 
 ### **Power**
 
@@ -53,7 +55,7 @@ Visit [Accton-IoT Godwit](https://www.accton-iot.com/godwit/) for more informati
 ## Where to Buy
 
 - [Accton-IoT Godwit](https://www.accton-iot.com/godwit/)
-- [sales@accton-iot.com](sales@accton-iot.com)
+- [sales@accton-iot.com](mailto:sales@accton-iot.com)
 
 ## Pinout
 
@@ -78,7 +80,7 @@ Visit [Accton-IoT Godwit](https://www.accton-iot.com/godwit/) for more informati
 
 ## PWM Output
 
-PWM M1-M8 (IO Main PWM), A1-A8(FMU PWM). All these 16 support normal PWM output formats. FMU PWM A1-A6 can support DShot and B-Directional DShot. A1-A8(FMU PWM) are grouped as:
+PWM M1-M8 (IO Main PWM), A1-A8(FMU PWM). All these 16 support normal PWM output formats. FMU PWM A1-A6 can support DShot and B-Directional DShot. DShot on M1-M8 (IO Main PWM) requires [BRD_IO_DSHOT](https://ardupilot.org/copter/docs/parameters.html#brd-io-dshot-load-dshot-fw-on-io) to be set to 1, followed by a reboot, which loads the DShot firmware onto the IO controller. A1-A8(FMU PWM) are grouped as:
 
 - Group 1: A1, A2, A3, A4
 - Group 2: A5, A6
@@ -129,17 +131,17 @@ This universal controller features a CAN PMU module that supports 3 to 14s lithi
 
 When running Ardupilot, the universal controller operates as a plug-and-play device, requiring no further configuration.
 
-This universal controller does not provide power to the servos. To power them, an external BEC must be connected to the positive and negative terminals of any A1–A8 or M1–M8 port.
+This universal controller does not provide power to the servos. To power them, an external BEC must be connected to the positive and negative terminals of any A1-A8 or M1-M8 port.
 
 ![G-A1 Power](power.png "G-A1 Power")
 
 The autopilot defaults are setup to DroneCAN BatteryInfo:
 
-- :ref:`BATT_MONITOR<BATT_MONITOR>` = 8
-- :ref:`CAN_P1_DRIVER<CAN_P1_DRIVER>` = 1
-- :ref:`CAN_P2_DRIVER<CAN_P2_DRIVER>` = 1
-- :ref:`CAN_D1_PROTOCOL<CAN_D1_PROTOCOL>` = 1
-- :ref:`CAN_D2_PROTOCOL<CAN_D2_PROTOCOL>` = 1
+- BATT_MONITOR = 8
+- CAN_P1_DRIVER = 1
+- CAN_P2_DRIVER = 1
+- CAN_D1_PROTOCOL = 1
+- CAN_D2_PROTOCOL = 1
 
 ## SD Card
 
@@ -156,5 +158,5 @@ To upgrade firmware use any ArduPilot GCS.  Firmware for the Godwit G-A1 is loca
 ## More Information and Support
 
 - [Accton-IoT Godwit](https://www.accton-iot.com/godwit/)
-- [sales@accton-iot.com](sales@accton-iot.com)
-- [support@accton-iot.com](support@accton-iot.com)
+- [sales@accton-iot.com](mailto:sales@accton-iot.com)
+- [support@accton-iot.com](mailto:support@accton-iot.com)

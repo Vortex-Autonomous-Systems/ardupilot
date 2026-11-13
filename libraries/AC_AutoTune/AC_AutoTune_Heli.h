@@ -106,7 +106,7 @@ protected:
 #if HAL_LOGGING_ENABLED
     // methods to log autotune summary data
     void Log_AutoTune() override;
-    void Log_Write_AutoTune(AxisType _axis, TuneType tune_step, float dwell_freq, float meas_gain, float meas_phase, float new_gain_rff, float new_gain_rp, float new_gain_rd, float new_gain_sp, float max_accel);
+    void Log_Write_AutoTune(AxisType _axis, TuneType tune_step, float dwell_freq, float meas_gain, float meas_phase, float new_gain_rff, float new_gain_rp, float new_gain_rd, float new_gain_sp, float max_accel_cdss);
 
     // methods to log autotune time history results for command, angular rate, and attitude.
     void Log_AutoTuneDetails() override;
@@ -289,8 +289,8 @@ private:
     const float sweep_time_ms = 23000;
 
     // parameters
-    AP_Int8  axis_bitmask;      // axes to be tuned
-    AP_Int8  seq_bitmask;       // tuning sequence bitmask
+    AP_UInt8 axis_bitmask;      // axes to be tuned
+    AP_UInt8 seq_bitmask;       // tuning sequence bitmask
     AP_Float min_sweep_freq;    // minimum sweep frequency
     AP_Float max_sweep_freq;    // maximum sweep frequency
     AP_Float max_resp_gain;     // maximum response gain

@@ -23,7 +23,7 @@ import subprocess
 import hal_common
 
 sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../libraries/AP_HAL_ESP32/hwdef/scripts'))
-import esp32_hwdef  # noqa:501
+import esp32_hwdef
 
 def configure(cfg):
     mcu_esp32s3 = True if (cfg.variant[0:7] == "esp32s3") else False
@@ -153,7 +153,6 @@ def pre_build(self):
 @feature('esp32_ap_program')
 @after_method('process_source')
 def esp32_firmware(self):
-    self.link_task.always_run = True
     esp_idf = self.bld.cmake('esp-idf')
 
     build = esp_idf.build('all', target='esp-idf_build/ardupilot.bin')

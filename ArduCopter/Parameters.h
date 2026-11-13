@@ -5,6 +5,7 @@
 #include <AP_Common/AP_Common.h>
 #include "RC_Channel_Copter.h"
 #include <AP_Proximity/AP_Proximity.h>
+#include <AP_SurfaceDistance/AP_SurfaceDistance.h>
 
 class ModeRTL;
 
@@ -14,6 +15,7 @@ class ModeRTL;
 #if WEATHERVANE_ENABLED
  #include <AC_AttitudeControl/AC_WeatherVane.h>
 #endif
+#include <AP_GroundEffect/AP_GroundEffect.h>
 
 // Global parameter class.
 //
@@ -104,7 +106,7 @@ public:
         k_param_throttle_accel_enabled,     // deprecated - remove
         k_param_wp_yaw_behavior,
         k_param_acro_trainer,
-        k_param_pilot_speed_up_cms,         // renamed from k_param_pilot_velocity_z_max
+        k_param_pilot_speed_up_cms,     // deprecated - moved to G2 as PILOT_SPD_UP
         k_param_circle_rate,            // deprecated - remove
         k_param_rangefinder_gain,       // deprecated - remove
         k_param_ch8_option_old,         // deprecated
@@ -123,8 +125,8 @@ public:
         k_param_rc_14_old,
         k_param_rally,
         k_param_poshold_brake_rate_degs,
-        k_param_poshold_brake_angle_max,
-        k_param_pilot_accel_d_cmss,
+        k_param_poshold_brake_angle_max,    // deprecated - remove
+        k_param_pilot_accel_d_cmss,     // deprecated - moved to G2 as PILOT_ACC_Z
         k_param_serial0_baud,           // deprecated - remove
         k_param_serial1_baud,           // deprecated - remove
         k_param_serial2_baud,           // deprecated - remove
@@ -140,7 +142,7 @@ public:
         k_param_cli_enabled_old,        // deprecated - remove
         k_param_throttle_filt,
         k_param_throttle_behavior,
-        k_param_pilot_takeoff_alt_cm, // 64
+        k_param_pilot_takeoff_alt_cm,   // deprecated - moved to G2 as PILOT_TKO_ALT_M
 
         // 65: AP_Limits Library
         k_param_limits = 65,            // deprecated - remove
@@ -316,12 +318,12 @@ public:
         //
         // 200: flight modes
         //
-        k_param_flight_mode1 = 200,
-        k_param_flight_mode2,
-        k_param_flight_mode3,
-        k_param_flight_mode4,
-        k_param_flight_mode5,
-        k_param_flight_mode6,
+        k_param_flight_modes0 = 200,
+        k_param_flight_modes1,
+        k_param_flight_modes2,
+        k_param_flight_modes3,
+        k_param_flight_modes4,
+        k_param_flight_modes5,
         k_param_simple_modes,
         k_param_flight_mode_chan,
         k_param_initial_mode,
@@ -394,53 +396,73 @@ public:
     AP_Int16        format_version;
 
     AP_Float        throttle_filt;
-    AP_Int16        throttle_behavior;
-    AP_Float        pilot_takeoff_alt_cm;
+    AP_UInt16       throttle_behavior;
 
 #if MODE_RTL_ENABLED
     AP_Float        rtl_cone_slope;
-    AP_Int32        rtl_loiter_time;
+    AP_UInt32       rtl_loiter_time;
     AP_Enum<ModeRTL::RTLAltType> rtl_alt_type;
 #endif
 
-    AP_Int8         failsafe_gcs;               // ground station failsafe behavior
+    // GCS failsafe definitions (FS_GCS_ENABLE parameter)
+    enum class FS_GCS_Action {
+        DISABLED                 = 0,
+        ALWAYS_RTL               = 1,
+        CONTINUE_MISSION         = 2,    // Removed in 4.0+, now use fs_options
+        ALWAYS_SMARTRTL_OR_RTL   = 3,
+        ALWAYS_SMARTRTL_OR_LAND  = 4,
+        ALWAYS_LAND              = 5,
+        AUTO_RTL_OR_RTL          = 6,
+        BRAKE_OR_LAND            = 7,
+    };
+
+    AP_Enum<FS_GCS_Action> failsafe_gcs;        // ground station failsafe behavior
     AP_Int16        gps_hdop_good;              // GPS Hdop value at or below this value represent a good position
 
-    AP_Int8         super_simple;
+    AP_UInt8        super_simple;
 
-    AP_Int8         wp_yaw_behavior;            // controls how the autopilot controls yaw during missions
+    // Yaw behaviours during missions (WP_YAW_BEHAVIOR parameter)
+    enum class WPYawBehavior {
+        NONE                       = 0,
+        LOOK_AT_NEXT_WP            = 1,
+        LOOK_AT_NEXT_WP_EXCEPT_RTL = 2,
+        LOOK_AHEAD                 = 3,
+    };
+
+    AP_Enum<WPYawBehavior> wp_yaw_behavior;     // controls how the autopilot controls yaw during missions
 
 #if MODE_POSHOLD_ENABLED
     AP_Int16        poshold_brake_rate_degs;    // PosHold flight mode's rotation rate during braking in deg/sec
-    AP_Int16        poshold_brake_angle_max;    // PosHold flight mode's max lean angle during braking in centi-degrees
 #endif
 
-    // Waypoints
-    //
-    AP_Int16        pilot_speed_up_cms;         // maximum vertical ascending velocity the pilot may request
-    AP_Int16        pilot_accel_d_cmss;         // vertical acceleration the pilot may request
+    // Throttle failsafe definitions (FS_THR_ENABLE parameter)
+    enum class FS_THR_Action {
+        DISABLED                 = 0,
+        ALWAYS_RTL               = 1,
+        CONTINUE_MISSION         = 2,    // Removed in 4.0+, now use fs_options
+        ALWAYS_LAND              = 3,
+        ALWAYS_SMARTRTL_OR_RTL   = 4,
+        ALWAYS_SMARTRTL_OR_LAND  = 5,
+        AUTO_RTL_OR_RTL          = 6,
+        BRAKE_OR_LAND            = 7,
+    };
 
     // Throttle
     //
-    AP_Int8         failsafe_throttle;
-    AP_Int16        failsafe_throttle_value;
+    AP_Enum<FS_THR_Action> failsafe_throttle;
+    AP_UInt16       failsafe_throttle_value;
     AP_Int16        throttle_deadzone;
 
     // Flight modes
     //
-    AP_Int8         flight_mode1;
-    AP_Int8         flight_mode2;
-    AP_Int8         flight_mode3;
-    AP_Int8         flight_mode4;
-    AP_Int8         flight_mode5;
-    AP_Int8         flight_mode6;
-    AP_Int8         simple_modes;
+    AP_Int8         flight_modes[6];
+    AP_UInt8        simple_modes;
     AP_Int8         flight_mode_chan;
     AP_Int8         initial_mode;
 
     // Misc
     //
-    AP_Int32        log_bitmask;
+    AP_UInt32       log_bitmask;
     AP_Int8         esc_calibrate;
 #if AP_RC_TRANSMITTER_TUNING_ENABLED
     AP_Int8         rc_tuning_param;
@@ -449,10 +471,19 @@ public:
     AP_Int8         disarm_delay;
 
     AP_Int8         land_repositioning;
-    AP_Int8         fs_ekf_action;
+
+    // EKF failsafe definitions (FS_EKF_ACTION parameter)
+    enum class FS_EKF_Action {
+        REPORT_ONLY          = 0,
+        LAND                 = 1,
+        ALTHOLD              = 2,
+        LAND_EVEN_STABILIZE  = 3,
+    };
+
+    AP_Enum<FS_EKF_Action> fs_ekf_action;
     AP_Int8         fs_crash_check;
     AP_Float        fs_ekf_thresh;
-    AP_Int16        gcs_pid_mask;
+    AP_UInt16       gcs_pid_mask;
 
 #if MODE_THROW_ENABLED
     AP_Enum<ModeThrow::PreThrowMotorState>         throw_motor_start;
@@ -513,17 +544,14 @@ public:
     AP_Enum<ModeThrow::ThrowType> throw_type;
 #endif
 
-    // ground effect compensation enable/disable
-    AP_Int8 gndeffect_comp_enabled;
+#if AP_GROUNDEFFECT_ENABLED
+    // ground effect detector
+    AP_GroundEffect ground_effect;
+#endif
 
 #if AP_TEMPCALIBRATION_ENABLED
     // temperature calibration handling
     AP_TempCalibration temp_calibration;
-#endif
-
-#if AP_BEACON_ENABLED
-    // beacon (non-GPS positioning) library
-    AP_Beacon beacon;
 #endif
 
 #if HAL_PROXIMITY_ENABLED
@@ -537,7 +565,7 @@ public:
 #endif
 
     // developer options
-    AP_Int32 dev_options;
+    AP_UInt32 dev_options;
 
 #if MODE_ACRO_ENABLED
     AP_Float acro_thr_mid;
@@ -562,8 +590,11 @@ public:
     AP_Winch winch;
 #endif
 
-    // Additional pilot velocity items
-    AP_Int16    pilot_speed_dn_cms;
+    // Pilot vertical velocity and acceleration
+    AP_Float    pilot_accel_d_mss;      // vertical acceleration the pilot may request
+    AP_Float    pilot_speed_up_ms;      // maximum vertical ascending velocity the pilot may request
+    AP_Float    pilot_speed_dn_ms;      // maximum vertical descending velocity the pilot may request
+    AP_Float    pilot_takeoff_alt_m;    // altitude vehicle will takeoff to after pilot triggers takeoff with throttle stick
 
 #if TOY_MODE_ENABLED
     ToyMode toy_mode;
@@ -608,7 +639,7 @@ public:
     AP_Int8 fs_vibe_enabled;
 
     // Failsafe options bitmask #36
-    AP_Int32 fs_options;
+    AP_UInt32 fs_options;
 
 #if MODE_AUTOROTATE_ENABLED
     // Autonmous autorotation
@@ -632,24 +663,24 @@ public:
     AC_CommandModel command_model_pilot_y;
 
 #if MODE_ACRO_ENABLED
-    AP_Int8 acro_options;
+    AP_UInt8 acro_options;
 #endif
 
 #if MODE_AUTO_ENABLED
-    AP_Int32 auto_options;
+    AP_UInt32 auto_options;
 #endif
 
 #if MODE_GUIDED_ENABLED
-    AP_Int32 guided_options;
+    AP_UInt32 guided_options;
 #endif
 
     AP_Float fs_gcs_timeout;
 
 #if MODE_RTL_ENABLED
-    AP_Int32 rtl_options;
+    AP_UInt32 rtl_options;
 #endif
 
-    AP_Int32 flight_options;
+    AP_UInt32 flight_options;
 
 #if AP_RANGEFINDER_ENABLED
     AP_Float rangefinder_filt;
@@ -663,6 +694,7 @@ public:
     AP_Int8                 failsafe_dr_enable;
     AP_Int16                failsafe_dr_timeout;
     AP_Float                surftrak_tc;
+    AP_SurfaceDistance::SurfDistParameters surf_dist_parameters;
 
     // ramp time of throttle during take-off
     AP_Float takeoff_throttle_slew_time;
@@ -702,6 +734,15 @@ public:
 #endif
 
     void *mode_land_ptr;
+
+#if MODE_POSHOLD_ENABLED
+    void *mode_poshold_ptr;
+#endif
+
+#if MODE_FLIP_ENABLED
+    void *mode_flip_ptr;
+#endif
+
 };
 
 extern const AP_Param::Info        var_info[];

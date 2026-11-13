@@ -12,6 +12,8 @@
 
 #pragma GCC diagnostic ignored "-Wnarrowing"
 
+#define P (const_cast<const Matrix24 &>(Pmut))
+
 void NavEKF3_core::Log_Write_XKF1(uint64_t time_us) const
 {
     // Write first EKF packet
@@ -100,7 +102,7 @@ void NavEKF3_core::Log_Write_XKFS(uint64_t time_us) const
         baro_index     : selected_baro,
         gps_index      : selected_gps,
         airspeed_index : getActiveAirspeed(),
-        source_set     : frontend->sources.getPosVelYawSourceSet(),
+        source_set     : frontend->sources.getActiveSourceSet(core_index),
         gps_good_to_align : gpsGoodToAlign,
         wait_for_gps_checks : waitingForGpsChecks,
         mag_fusion: (uint8_t) magFusionSel
@@ -199,7 +201,7 @@ void NavEKF3_core::Log_Write_XKF5(uint64_t time_us) const
         FIY : (int16_t)(1000*flowInnov[1]),  // optical flow LOS rate vector innovations from the main nav filter
         AFI : (int16_t)(1000 * auxFlowObsInnov.length()),  // optical flow LOS rate innovation from terrain offset estimator
         HAGL : float_to_int16(100*(terrainState - stateStruct.position.z)),    // height above ground level
-        offset : (int16_t)(100*terrainState),           // filter ground offset state error
+        terrOffset : (int16_t)(100*terrainState),       // filter ground offset state error
         RI : (int16_t)(100*innovRng),                   // range finder innovations
         meaRng : (uint16_t)(100*rangeDataDelayed.rng),  // measured range
 #if EK3_FEATURE_OPTFLOW_FUSION
@@ -209,9 +211,27 @@ void NavEKF3_core::Log_Write_XKF5(uint64_t time_us) const
 #endif
         angErr : (float)outputTrackError.x,             // output predictor angle error
         velErr : (float)outputTrackError.y,             // output predictor velocity error
-        posErr : (float)outputTrackError.z              // output predictor position tracking error
+        posErr : (float)outputTrackError.z,             // output predictor position tracking error
+        baroOffset : (float)baroHgtOffset               // barometer height offset subtracted from raw baro measurement when fusing baro height
     };
     AP::logger().WriteBlock(&pkt5, sizeof(pkt5));
+
+#if EK3_FEATURE_OPTFLOW_AGL_KF
+    // log the optional "special" KF for HAGL estimation directly via RangeFinder + IMU
+    if (frontend->option_is_enabled(NavEKF3::Option::AglKfForOptflow)) {
+        const struct log_XKFA pktfA{
+            LOG_PACKET_HEADER_INIT(LOG_XKFA_MSG),
+            time_us : time_us,
+            core    : DAL_CORE(core_index),
+            hAgl    : (float)aglKf.hgt,                // AGL height estimate (m)
+            vAgl    : (float)aglKf.vel,                // AGL velocity estimate (m/s, +ve = climbing)
+            hAglStd : (float)sqrtF(aglKf.cov[0][0]),   // std-dev of h_agl (m)
+            vAglStd : (float)sqrtF(aglKf.cov[1][1]),   // std-dev of v_agl (m/s)
+            valid   : (uint8_t)aglKf.valid            // 1 when RF fused within last 5 s
+        };
+        AP::logger().WriteBlock(&pktfA, sizeof(pktfA));
+    }
+#endif
 }
 
 void NavEKF3_core::Log_Write_Quaternion(uint64_t time_us) const
@@ -289,18 +309,18 @@ void NavEKF3_core::Log_Write_BodyOdom(uint64_t time_us)
         return;
     }
 
-    const uint32_t updateTime_ms = MAX(bodyOdmDataDelayed.time_ms,wheelOdmDataDelayed.time_ms);
+    const uint32_t updateTime_ms = MAX(bodyOdm.dataDelayed.time_ms,bodyOdm.wheelDataDelayed.time_ms);
     if (updateTime_ms > lastUpdateTime_ms) {
         const struct log_XKFD pkt11{
             LOG_PACKET_HEADER_INIT(LOG_XKFD_MSG),
             time_us : time_us,
             core    : DAL_CORE(core_index),
-            velInnovX : innovBodyVel[0],
-            velInnovY : innovBodyVel[1],
-            velInnovZ : innovBodyVel[2],
-            velInnovVarX : varInnovBodyVel[0],
-            velInnovVarY : varInnovBodyVel[1],
-            velInnovVarZ : varInnovBodyVel[2]
+            velInnovX : bodyOdm.innov[0],
+            velInnovY : bodyOdm.innov[1],
+            velInnovZ : bodyOdm.innov[2],
+            velInnovVarX : bodyOdm.varInnov[0],
+            velInnovVarY : bodyOdm.varInnov[1],
+            velInnovVarZ : bodyOdm.varInnov[2]
          };
         AP::logger().WriteBlock(&pkt11, sizeof(pkt11));
         lastUpdateTime_ms = updateTime_ms;

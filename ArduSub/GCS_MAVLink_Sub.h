@@ -29,6 +29,9 @@ protected:
     void send_banner() override;
 
     void send_nav_controller_output() const override;
+    // returns a Location to which the vehicle is currently heading, or
+    // would head to in an autonomous mode
+    bool get_target_location(Location &loc) const override;
     void send_pid_tuning() override;
 
     uint64_t capabilities() const override;
@@ -40,6 +43,12 @@ protected:
 private:
 
     void handle_message(const mavlink_message_t &msg) override;
+    void handle_message_rc_channels_override(const mavlink_message_t &msg);
+    void handle_message_set_attitude_target(const mavlink_message_t &msg);
+    void handle_message_set_position_target_local_ned(const mavlink_message_t &msg);
+    void handle_message_set_position_target_global_int(const mavlink_message_t &msg);
+    void handle_message_sys_status(const mavlink_message_t &msg);
+
     bool handle_guided_request(AP_Mission::Mission_Command &cmd) override;
     bool try_send_message(enum ap_message id) override;
 
@@ -58,10 +67,19 @@ private:
     MAV_RESULT handle_MAV_CMD_NAV_LOITER_UNLIM(const mavlink_command_int_t &packet);
     MAV_RESULT handle_MAV_CMD_NAV_LAND(const mavlink_command_int_t &packet);
 
+#if AP_RANGEFINDER_ENABLED
+    // send WATER_DEPTH - metres and temperature
+    void send_water_depth();
+    // state variable for the last rangefinder we sent a WATER_DEPTH
+    // message for.  We cycle through the rangefinder backends to
+    // limit the amount of telemetry bandwidth we consume.
+    uint8_t last_WATER_DEPTH_index;
+#endif // AP_RANGEFINDER_ENABLED
+
 #if HAL_HIGH_LATENCY2_ENABLED
     int16_t high_latency_target_altitude() const override;
     uint8_t high_latency_tgt_heading() const override;
-    uint16_t high_latency_tgt_dist() const override;
+    uint16_t high_latency_tgt_dist_dam() const override;
     uint8_t high_latency_tgt_airspeed() const override;
 #endif // HAL_HIGH_LATENCY2_ENABLED
 };

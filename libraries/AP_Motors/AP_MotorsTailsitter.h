@@ -2,6 +2,10 @@
 /// @brief	Motor control class for tailsitters and bicopters
 #pragma once
 
+#include "AP_Motors_config.h"
+
+#if AP_MOTORS_TAILSITTER_ENABLED
+
 #include <AP_Common/AP_Common.h>
 #include <AP_Math/AP_Math.h>
 #include "AP_MotorsMulticopter.h"
@@ -29,6 +33,9 @@ public:
     //  this can be used to ensure other pwm outputs (i.e. for servos) do not conflict
     uint32_t get_motor_mask() override;
 
+    // output_motor_mask is not supported by the tailsitter backend, override to ensure no action.
+    void output_motor_mask(float thrust, uint32_t mask, float rudder_dt) override {};
+
     // Set by tailsitters using diskloading minumum outflow velocity limit
     void set_min_throttle(float val) {_external_min_throttle = val;}
 
@@ -55,3 +62,5 @@ protected:
     bool _has_diff_thrust;
 
 };
+
+#endif  // AP_MOTORS_TAILSITTER_ENABLED

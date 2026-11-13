@@ -328,6 +328,10 @@ bool AC_AutoTune::currently_level()
 {
     // abort AutoTune if we pass 2 * AUTOTUNE_LEVEL_TIMEOUT_MS
     const uint32_t now_ms = AP_HAL::millis();
+    if (fabsf(attitude_control->get_rate_ef_target_rads().z) > 0.5 * attitude_control->get_slew_yaw_max_rads()) {
+        // reset if the target yaw rate is above half the slew rate
+        level_start_time_ms = now_ms;
+    }
     if (now_ms - level_start_time_ms > 3 * AUTOTUNE_LEVEL_TIMEOUT_MS) {
         GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "AutoTune: Failed to level, please tune manually");
         mode = TuneMode::FAILED;
@@ -347,13 +351,13 @@ bool AC_AutoTune::currently_level()
     if (fabsf(wrap_PI(ahrs_view->get_yaw_rad() - desired_yaw_rad)) > threshold_mul * cd_to_rad(AUTOTUNE_LEVEL_ANGLE_CD)) {
         return false;
     }
-    if (ahrs_view->get_gyro().x > threshold_mul * cd_to_rad(AUTOTUNE_LEVEL_RATE_RP_CD)) {
+    if (fabsf(ahrs_view->get_gyro().x) > threshold_mul * cd_to_rad(AUTOTUNE_LEVEL_RATE_RP_CD)) {
         return false;
     }
-    if (ahrs_view->get_gyro().y > threshold_mul * cd_to_rad(AUTOTUNE_LEVEL_RATE_RP_CD)) {
+    if (fabsf(ahrs_view->get_gyro().y) > threshold_mul * cd_to_rad(AUTOTUNE_LEVEL_RATE_RP_CD)) {
         return false;
     }
-    if (ahrs_view->get_gyro().z > threshold_mul * cd_to_rad(AUTOTUNE_LEVEL_RATE_Y_CD)) {
+    if (fabsf(ahrs_view->get_gyro().z) > threshold_mul * cd_to_rad(AUTOTUNE_LEVEL_RATE_Y_CD)) {
         return false;
     }
     return true;
@@ -683,7 +687,7 @@ bool AC_AutoTune::position_ok(void)
 
     // with EKF use filter status and ekf check
     nav_filter_status filt_status {}; 
-    AP::ahrs().get_filter_status(filt_status);
+    AP::ahrs().get_filter_status_for_configured_backend(filt_status);
 
     // require a good absolute position and EKF must not be in const_pos_mode
     return (filt_status.flags.horiz_pos_abs && !filt_status.flags.const_pos_mode);
@@ -756,7 +760,7 @@ void AC_AutoTune::get_poshold_attitude_rad(float &roll_out_rad, float &pitch_out
         target_yaw_rad += radians(90);
     }
     // go to the nearest 180 degree mark, with 5 degree slop to prevent oscillation
-    if (fabsf(yaw_out_rad - target_yaw_rad) > radians(95.0)) {
+    if (fabsf(wrap_PI(yaw_out_rad - target_yaw_rad)) > radians(95.0)) {
         target_yaw_rad += radians(180.0);
     }
 

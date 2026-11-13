@@ -5,16 +5,24 @@
 
 extern const AP_HAL::HAL& hal;
 
-#define LOITER_SPEED_DEFAULT_MS             12.5    // Default horizontal loiter speed in m/s.
+#if APM_BUILD_TYPE(APM_BUILD_Heli)
+ #define LOITER_SPEED_DEFAULT_MS             30.0    // Default horizontal loiter speed in m/s.
+ #define LOITER_BRAKE_ACCEL_DEFAULT_MSS      1.25    // Default maximum braking acceleration when sticks are released (m/s²).
+ #define LOITER_BRAKE_JERK_DEFAULT_MSSS      2.5    // Default maximum jerk applied during braking transitions (m/s³).
+#else
+ #define LOITER_SPEED_DEFAULT_MS             12.5    // Default horizontal loiter speed in m/s.
+ #define LOITER_BRAKE_ACCEL_DEFAULT_MSS      2.5     // Default maximum braking acceleration when sticks are released (m/s²).
+ #define LOITER_BRAKE_JERK_DEFAULT_MSSS      5.0     // Default maximum jerk applied during braking transitions (m/s³).
+#endif
+
+// Common defaults between trad heli and copter
 #define LOITER_SPEED_MIN_MS                 0.2     // Minimum allowed horizontal loiter speed in m/s.
 #define LOITER_ACCEL_MAX_DEFAULT_MSS        5.0     // Default maximum horizontal acceleration in loiter mode (m/s²).
-#define LOITER_BRAKE_ACCEL_DEFAULT_MSS      2.5     // Default maximum braking acceleration when sticks are released (m/s²).
-#define LOITER_BRAKE_JERK_DEFAULT_MSSS      5.0     // Default maximum jerk applied during braking transitions (m/s³).
 #define LOITER_BRAKE_START_DELAY_DEFAULT_S  1.0     // Delay (in seconds) before braking begins after sticks are released.
 #define LOITER_VEL_CORRECTION_MAX_MS        2.0     // Maximum speed (in m/s) used for correcting position errors in loiter.
 #define LOITER_POS_CORRECTION_MAX_M         2.0     // Maximum horizontal position error allowed before correction (m).
 #define LOITER_ACTIVE_TIMEOUT_MS            200     // Loiter is considered active if updated within the past 200 ms.
-#define LOITER_DEFAULT_OPTIONS              1       // Enable Coordinated Turn by default.
+#define LOITER_DEFAULT_OPTIONS              0       // Coordinated Turns disabled by default.
 
 const AP_Param::GroupInfo AC_Loiter::var_info[] = {
 
@@ -169,10 +177,12 @@ void AC_Loiter::set_pilot_desired_acceleration_rad(float euler_roll_angle_rad, f
 
     // convert our desired attitude to an acceleration vector assuming we are not accelerating vertically
     const Vector3f desired_euler_rad {euler_roll_angle_rad, euler_pitch_angle_rad, _ahrs.yaw};
-    const Vector3f desired_accel_ned_mss = _pos_control.lean_angles_rad_to_accel_NED_mss(desired_euler_rad);
+    _desired_accel_ne_mss = _pos_control.lean_angles_rad_to_accel_NED_mss(desired_euler_rad).xy();
 
-    _desired_accel_ne_mss.x = desired_accel_ned_mss.x;
-    _desired_accel_ne_mss.y = desired_accel_ned_mss.y;
+    // Reset brake timer if there is pilot input
+    if (!_desired_accel_ne_mss.is_zero()) {
+        _brake_timer_ms = AP_HAL::millis();
+    }
 
     // Compute attitude error between desired and predicted lean angles
     Vector2f angle_error_euler_rad(wrap_PI(euler_roll_angle_rad - _predicted_euler_angle_rad.x), wrap_PI(euler_pitch_angle_rad - _predicted_euler_angle_rad.y));
@@ -252,7 +262,7 @@ void AC_Loiter::set_speed_max_NE_ms(float speed_max_ne_ms)
 // perform any required parameter conversions
 void AC_Loiter::convert_parameters()
 {
-    // PARAMETER_CONVERSION - Added: Jan-2026 for 4.7
+    // PARAMETER_CONVERSION - Added: Jan-2026 for ArduPilot-4.7
 
     // return immediately if no conversion is needed
     if (_speed_max_ne_ms.configured() || _accel_max_ne_mss.configured() || _brake_accel_max_mss.configured() || _brake_jerk_max_msss.configured()) {
@@ -309,9 +319,9 @@ bool AC_Loiter::loiter_option_is_set(LoiterOption option) const {
 // - Resulting velocity and acceleration are sent to the position controller.
 void AC_Loiter::calc_desired_velocity(bool avoidance_on)
 {
-    float ekfGndSpdLimit_ms, ahrsControlScaleXY;
-    // Query EKF-imposed horizontal ground speed limit (e.g. for optical flow)
-    AP::ahrs().getControlLimits(ekfGndSpdLimit_ms, ahrsControlScaleXY);
+    // the estimator might impose limits on maximum velocity (e.g. due
+    // to the sensors being used to supply its estimated velocity):
+    const float ekfGndSpdLimit_ms = AP::ahrs().get_control_ground_speed_limit_ms();
 
     const float dt_s = _pos_control.get_dt_s();
 
@@ -320,7 +330,7 @@ void AC_Loiter::calc_desired_velocity(bool avoidance_on)
     gnd_speed_limit_ms = MAX(gnd_speed_limit_ms, LOITER_SPEED_MIN_MS);
 
     // Determine acceleration limit based on maximum allowed lean angle
-    float pilot_acceleration_max_mss = angle_rad_to_accel_mss(get_angle_max_rad());
+    float pilot_acceleration_max_mss = (gnd_speed_limit_ms / _speed_max_ne_ms) * angle_rad_to_accel_mss(get_angle_max_rad());
 
     // Check for invalid dt
     if (is_negative(dt_s)) {
@@ -341,16 +351,11 @@ void AC_Loiter::calc_desired_velocity(bool avoidance_on)
         // Apply drag: deceleration proportional to current velocity
         float drag_decel_mss = pilot_acceleration_max_mss * desired_speed_ms / gnd_speed_limit_ms;
 
-        // Determine braking acceleration based on stick release and delay timer
+        // Determine braking acceleration based on stick release and delay timer, stick must have been released for at least a full loop
         float loiter_brake_accel_mss = 0.0f;
-        if (_desired_accel_ne_mss.is_zero()) {
-            if ((AP_HAL::millis() - _brake_timer_ms) > _brake_delay_s * 1000.0) {
-                float brake_gain = _pos_control.NE_get_vel_pid().kP() * 0.5f;
-                loiter_brake_accel_mss = constrain_float(sqrt_controller(desired_speed_ms, brake_gain, _brake_jerk_max_msss, dt_s), 0.0f, _brake_accel_max_mss);
-            }
-        } else {
-            loiter_brake_accel_mss = 0.0f;
-            _brake_timer_ms = AP_HAL::millis();
+        if ((AP_HAL::millis() - _brake_timer_ms) > MAX(_brake_delay_s, dt_s) * 1000.0) {
+            const float brake_gain = _pos_control.NE_get_vel_pid().kP() * 0.5f;
+            loiter_brake_accel_mss = constrain_float(sqrt_controller(desired_speed_ms, brake_gain, _brake_jerk_max_msss, dt_s), 0.0f, _brake_accel_max_mss);
         }
 
         // Integrate jerk-limited brake acceleration

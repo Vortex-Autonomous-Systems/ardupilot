@@ -1,7 +1,7 @@
 ---@meta
 -- ArduPilot lua scripting documentation in EmmyLua Annotations
 -- This file should be auto generated and then manual edited
--- generate with --scripting-docs, eg  ./waf copter --scripting-docs
+-- generate with scripting-docs, eg  ./waf scripting-docs
 -- see: https://github.com/sumneko/lua-language-server/wiki/EmmyLua-Annotations
 -- luacheck: ignore 121 (Setting a read-only global variable)
 -- luacheck: ignore 122 (Setting a read-only field of a global variable)
@@ -1156,6 +1156,19 @@ function Location_ud:change_alt_frame(desired_frame) end
 ---| '3' # ABOVE_TERRAIN
 function Location_ud:set_alt_m(alt, frame) end
 
+-- get altitude (in metres) in the desired frame. Returns nil on failure, which can only
+-- happen if the original frame or desired frame is:
+-- - above-terrain and the terrain database can't supply terrain height amsl
+-- - above-home and home is not set
+-- - above-origin and origin is not set
+---@param frame integer -- altitude frame
+---| '0' # ABSOLUTE
+---| '1' # ABOVE_HOME
+---| '2' # ABOVE_ORIGIN
+---| '3' # ABOVE_TERRAIN
+---@return number|nil -- altitude in specified frame
+function Location_ud:get_alt_m(frame) end
+
 -- Given a Location this calculates the north and east distance between the two locations in meters.
 ---@param loc Location_ud -- location to compare with
 ---@return Vector2f_ud -- North east distance vector in meters
@@ -1732,74 +1745,108 @@ function mavlink_video_stream_information_t_ud:encoding(value) end
 ---@param stream_info mavlink_video_stream_information_t_ud
 function camera:set_stream_information(instance, stream_info) end
 
--- desc
+-- Mount/gimbal control and driver interface
 mount = {}
 
--- desc
----@param instance integer
+-- methods to interact with ArduPilot's mount/gimbal frontend
+
+-- Returns the current mount mode
+---@param instance integer -- mount instance (0 or 1)
+---@return integer
+---| '0' # Retract
+---| '1' # Neutral
+---| '2' # MAVLink targeting
+---| '3' # RC targeting
+---| '4' # GPS point
+---| '5' # SysID target
+---| '6' # Home location
+function mount:get_mode(instance) end
+
+-- Set mount operating mode
+---@param instance integer -- mount instance (0 or 1)
+---@param mode integer
+---| '0' # Retract
+---| '1' # Neutral
+---| '2' # MAVLink targeting
+---| '3' # RC targeting
+---| '4' # GPS point
+---| '5' # SysID target
+---| '6' # Home location
+function mount:set_mode(instance, mode) end
+
+-- Set target angles for the gimbal. Roll and pitch are always earth-frame, yaw frame is selectable
+---@param instance integer -- mount instance (0 or 1)
 ---@param roll_deg number
 ---@param pitch_deg number
 ---@param yaw_deg number
-function mount:set_attitude_euler(instance, roll_deg, pitch_deg, yaw_deg) end
+---@param yaw_is_earth_frame boolean -- true for earth-frame yaw, false for body-frame
+function mount:set_angle_target(instance, roll_deg, pitch_deg, yaw_deg, yaw_is_earth_frame) end
 
--- desc
----@param instance integer
----@return Location_ud|nil
-function mount:get_location_target(instance) end
+-- Set target angular rates for the gimbal in degrees per second
+---@param instance integer -- mount instance (0 or 1)
+---@param roll_degs number
+---@param pitch_degs number
+---@param yaw_degs number
+---@param yaw_is_earth_frame boolean -- true for earth-frame yaw rate, false for body-frame
+function mount:set_rate_target(instance, roll_degs, pitch_degs, yaw_degs, yaw_is_earth_frame) end
 
--- desc
----@param instance integer
+-- Point the gimbal at a Location (Region of Interest)
+---@param instance integer -- mount instance (0 or 1)
+---@param target_loc Location_ud
+function mount:set_roi_target(instance, target_loc) end
+
+-- Returns the gimbal's current attitude as Euler angles in degrees. Yaw is in body-frame
+---@param instance integer -- mount instance (0 or 1)
+---@return number|nil -- roll_deg
+---@return number|nil -- pitch_deg
+---@return number|nil -- yaw_bf_deg
+function mount:get_attitude_euler(instance) end
+
+-- methods used to implement a gimbal driver in Lua (MNTn_TYPE = 9):
+
+-- Declare which target types the gimbal driver natively supports as a bitmask of MountTargetType
+-- bit values. The mount frontend uses this to decide what to pass through and what to convert.
+-- e.g., if your gimbal only supports setting the angle targets, then the frontend will convert
+-- location and rate commands to an angle for you.
+---@param instance integer -- mount instance (0 or 1)
+---@param types_mask integer -- bitmask of supported MountTargetType values, combine with bitwise OR
+---| '1' # angle (1 << 0)
+---| '2' # rate (1 << 1)
+---| '4' # retracted (1 << 2)
+---| '8' # neutral (1 << 3)
+---| '16' # location (1 << 4)
+function mount:set_natively_supported_mount_target_types(instance, types_mask) end
+
+-- Get the angle target that the frontend has requested, in degrees. Returns nil if angles are not the active target type
+---@param instance integer -- mount instance (0 or 1)
 ---@return number|nil   -- roll_deg
 ---@return number|nil   -- pitch_deg
 ---@return number|nil   -- yaw_deg
 ---@return boolean|nil  -- yaw_is_earth_frame
 function mount:get_angle_target(instance) end
 
--- desc
----@param instance integer
+-- Get the rate target that the frontend has requested, in degrees per second. Returns nil if rates are not the active target type
+---@param instance integer -- mount instance (0 or 1)
 ---@return number|nil   -- roll_degs
 ---@return number|nil   -- pitch_degs
 ---@return number|nil   -- yaw_degs
 ---@return boolean|nil  -- yaw_is_earth_frame
 function mount:get_rate_target(instance) end
 
--- desc
----@param instance integer
----@param target_loc Location_ud
-function mount:set_roi_target(instance, target_loc) end
+-- Get the location the mount should be pointing at, if any. Returns a target when the mount mode
+-- implies a location (GPS_POINT, HOME_LOCATION, SYSID_TARGET), nil otherwise.
+-- Unlike get_angle_target/get_rate_target this is not affected by natively supported types
+---@param instance integer -- mount instance (0 or 1)
+---@return Location_ud|nil
+function mount:get_location_target(instance) end
 
--- desc
----@param instance integer
----@param roll_degs number
----@param pitch_degs number
----@param yaw_degs number
----@param yaw_is_earth_frame boolean
-function mount:set_rate_target(instance, roll_degs, pitch_degs, yaw_degs, yaw_is_earth_frame) end
-
--- desc
----@param instance integer
+-- Report the gimbal's current attitude back to ArduPilot. Must be called regularly to indicate
+-- the mount is healthy; stop calling when the gimbal is unhealthy to signal the failure
+---@param instance integer -- mount instance (0 or 1)
 ---@param roll_deg number
 ---@param pitch_deg number
 ---@param yaw_deg number
----@param yaw_is_earth_frame boolean
-function mount:set_angle_target(instance, roll_deg, pitch_deg, yaw_deg, yaw_is_earth_frame) end
-
--- desc
----@param instance integer
----@param mode integer
-function mount:set_mode(instance, mode) end
-
--- desc
----@param instance integer
----@return integer
-function mount:get_mode(instance) end
-
--- desc
----@param instance integer
----@return number|nil -- roll_deg
----@return number|nil -- pitch_deg
----@return number|nil -- yaw_bf_deg
-function mount:get_attitude_euler(instance) end
+function mount:set_attitude_euler(instance, roll_deg, pitch_deg, yaw_deg) end
 
 -- desc
 motors = {}
@@ -2882,6 +2929,10 @@ function vehicle:reboot(hold_in_bootloader) end
 ---@return boolean
 function vehicle:is_taking_off() end
 
+-- Returns true if the vehicle's crash detection has triggered
+---@return boolean
+function vehicle:is_crashed() end
+
 -- desc
 ---@return boolean
 function vehicle:is_landing() end
@@ -2945,6 +2996,11 @@ gcs = {}
 ---@param value number -- value to send
 function gcs:send_named_float(name, value) end
 
+-- send named integer value using NAMED_VALUE_INT message
+---@param name string -- up to 10 chars long
+---@param value integer -- value to send
+function gcs:send_named_int(name, value) end
+
 -- send named string value using NAMED_VALUE_STRING message
 ---@param name string -- up to 10 chars long
 ---@param value string -- value to send, up to 64 chars long
@@ -2980,12 +3036,12 @@ function gcs:set_message_interval(port_num, msg_id, interval_us) end
 ---| '16' # MAV_TYPE_FLAPPING_WING=16, /* Flapping wing | */
 ---| '17' # MAV_TYPE_KITE=17, /* Kite | */
 ---| '18' # MAV_TYPE_ONBOARD_CONTROLLER=18, /* Onboard companion controller | */
----| '19' # MAV_TYPE_VTOL_DUOROTOR=19, /* Two-rotor VTOL using control surfaces in vertical operation in addition. Tailsitter. | */
----| '20' # MAV_TYPE_VTOL_QUADROTOR=20, /* Quad-rotor VTOL using a V-shaped quad config in vertical operation. Tailsitter. | */
+---| '19' # MAV_TYPE_VTOL_TAILSITTER_DUOROTOR=19, /* Two-rotor VTOL using control surfaces in vertical operation in addition. Tailsitter. | */
+---| '20' # MAV_TYPE_VTOL_TAILSITTER_QUADROTOR=20, /* Quad-rotor VTOL using a V-shaped quad config in vertical operation. Tailsitter. | */
 ---| '21' # MAV_TYPE_VTOL_TILTROTOR=21, /* Tiltrotor VTOL | */
----| '22' # MAV_TYPE_VTOL_RESERVED2=22, /* VTOL reserved 2 | */
----| '23' # MAV_TYPE_VTOL_RESERVED3=23, /* VTOL reserved 3 | */
----| '24' # MAV_TYPE_VTOL_RESERVED4=24, /* VTOL reserved 4 | */
+---| '22' # MAV_TYPE_VTOL_FIXEDROTOR=22, /* VTOL with separate fixed rotors for hover and cruise flight | */
+---| '23' # MAV_TYPE_VTOL_TAILSITTER=23, /* Tailsitter VTOL | */
+---| '24' # MAV_TYPE_VTOL_TILTWING=24, /* Tiltwing VTOL | */
 ---| '25' # MAV_TYPE_VTOL_RESERVED5=25, /* VTOL reserved 5 | */
 ---| '26' # MAV_TYPE_GIMBAL=26, /* Gimbal | */
 ---| '27' # MAV_TYPE_ADSB=27, /* ADSB system | */
@@ -3004,7 +3060,14 @@ function gcs:set_message_interval(port_num, msg_id, interval_us) end
 ---| '40' # MAV_TYPE_IMU=40, /* IMU | */
 ---| '41' # MAV_TYPE_GPS=41, /* GPS | */
 ---| '42' # MAV_TYPE_WINCH=42, /* Winch | */
----| '43' # MAV_TYPE_ENUM_END=43, /*  | */
+---| '43' # MAV_TYPE_GENERIC_MULTIROTOR=43, /* Generic multirotor that does not fit into a specific type or whose type is unknown | */
+---| '44' # MAV_TYPE_ILLUMINATOR=44, /* Illuminator. An illuminator is a light source that is used for lighting up dark areas external to the system: e.g. a torch or searchlight (as opposed to a light source for illuminating the system itself, e.g. an indicator light). | */
+---| '45' # MAV_TYPE_SPACECRAFT_ORBITER=45, /* Orbiter spacecraft. Includes satellites orbiting terrestrial and extra-terrestrial bodies. Follows NASA Spacecraft Classification. | */
+---| '46' # MAV_TYPE_GROUND_QUADRUPED=46, /* A generic four-legged ground vehicle (e.g., a robot dog). | */
+---| '47' # MAV_TYPE_VTOL_GYRODYNE=47, /* VTOL hybrid of helicopter and autogyro. It has a main rotor for lift and separate propellers for forward flight. The rotor must be powered for hover but can autorotate in cruise flight. See: https://en.wikipedia.org/wiki/Gyrodyne | */
+---| '48' # MAV_TYPE_GRIPPER=48, /* Gripper | */
+---| '49' # MAV_TYPE_RADIO=49, /* Radio | */
+---| '50' # MAV_TYPE_ENUM_END=50, /*  | */
 function gcs:frame_type() end
 
 -- get the throttle value in %
@@ -3280,6 +3343,33 @@ function rangefinder:has_orientation(orientation) end
 -- desc
 ---@return integer
 function rangefinder:num_sensors() end
+
+-- Airspeed backend
+---@class (exact) AP_Airspeed_Backend_ud
+local AP_Airspeed_Backend_ud = {}
+
+-- Provide a differential pressure reading, in Pascal. Returns false if failed. If an airspeed is provided directly that will take priority and the differential pressure will not be used.
+---@param press_pa number
+---@return boolean
+function AP_Airspeed_Backend_ud:handle_script_differential_pressure(press_pa) end
+
+-- Provide an airspeed reading, in m/s. Returns false if failed
+---@param airspeed_ms number
+---@return boolean
+function AP_Airspeed_Backend_ud:handle_script_airspeed(airspeed_ms) end
+
+-- Provide a temperature reading, in degrees C. Returns false if failed
+---@param temperature_c number
+---@return boolean
+function AP_Airspeed_Backend_ud:handle_script_temperature(temperature_c) end
+
+-- Airspeed library methods
+airspeed = {}
+
+-- get backend based on airspeed instance provided, 0 indexed
+---@param instance integer
+---@return AP_Airspeed_Backend_ud|nil
+function airspeed:get_backend(instance) end
 
 -- Proximity backend methods
 ---@class (exact) AP_Proximity_Backend_ud
@@ -3803,7 +3893,14 @@ function ahrs:get_velocity_NED() end
 ---@return Vector2f_ud -- ground speed vector, North East, meters / second
 function ahrs:groundspeed_vector() end
 
+-- Returns nil, or a Vector3f containing the current wind estimate for the vehicle.
+---@return Vector3f_ud|nil -- wind estimate North, East, Down meters / second if available
+function ahrs:get_wind() end
+
 -- Returns a Vector3f containing the current wind estimate for the vehicle.
+-- Deprecated, use get_wind; this gives no indication of whether the vehicle
+-- actually has a valid wind estimate, so the returned vector may be zero or stale.
+---@deprecated Use get_wind
 ---@return Vector3f_ud -- wind estiamte North, East, Down meters / second
 function ahrs:wind_estimate() end
 
@@ -4013,12 +4110,16 @@ function mavlink:register_rx_msgid(msg_id) end
 function mavlink:receive_chan() end
 
 -- sends mavlink message, to use this function the call should be like this:
--- mavlink:send(chan, mavlink_msgs.encode("MSG_NAME", {param1 = value1, param2 = value2, ...}})
+-- mavlink:send_chan(chan, mavlink_msgs.encode("MSG_NAME", {param1 = value1, param2 = value2, ...}))
+-- To override the target, first capture both encode() results, then pass the target:
+-- local msgid, payload = mavlink_msgs.encode("MSG_NAME", message)
+-- mavlink:send_chan(chan, msgid, payload, target_system)
 ---@param chan integer
 ---@param msgid integer
 ---@param message string
+---@param target_system? uint32_t_ud|integer -- overrides the payload target and supplies the wide header; requires a target-system field. Signed Lua integers preserve their uint32 bit pattern.
 ---@return boolean|nil -- True if send was successful, false if send was not successful, nil if channel does not exist
-function mavlink:send_chan(chan, msgid, message) end
+function mavlink:send_chan(chan, msgid, message, target_system) end
 
 -- Block a given MAV_CMD from being processed by ArduPilot
 ---@param comand_id integer
@@ -4044,12 +4145,14 @@ function fence:get_margin_breach_time() end
 ---| 8 # Minimum altitude
 function fence:get_breaches() end
 
--- Returns minimum safe altitude in meters above home alt frame (i.e. alt_min + margin)
----@return number 
+-- Returns minimum safe altitude in meters and its altitude frame (i.e. alt_min + margin)
+---@return number altitude_m
+---@return integer frame -- 0:Above sea level, 1:Above Home, 2:Above Origin, 3:Above Terrain
 function fence:get_safe_alt_min() end
 
--- Returns maximum safe altitude in meters above home alt frame (i.e. alt_max - margin)
----@return number 
+-- Returns maximum safe altitude in meters and its altitude frame (i.e. alt_max - margin)
+---@return number altitude_m
+---@return integer frame -- 0:Above sea level, 1:Above Home, 2:Above Origin, 3:Above Terrain
 function fence:get_safe_alt_max() end
 
 -- Returns configured fences
@@ -4222,56 +4325,105 @@ servo_telem = {}
 
 -- get servo telem for the given servo number
 ---@param servo_index integer -- 0 indexed servo number
----@return AP_Servo_Telem_Data_ud|nil
+---@return ServoTelemetryData_ud|nil
 function servo_telem:get_telem(servo_index) end
 
+-- update telemetry data for an servo instance
+---@param instance integer -- servo instance, 0 indexed
+---@param telemdata ServoTelemetryData_ud -- Data to update
+function servo_telem:update_telem_data(instance, telemdata) end
+
 -- Servo telemetry userdata object
----@class AP_Servo_Telem_Data_ud
-local AP_Servo_Telem_Data_ud = {}
+---@class ServoTelemetryData_ud
+local ServoTelemetryData_ud = {}
+
+-- Create new instance of ServoTelemetryData userdata object
+---@return ServoTelemetryData_ud
+function ServoTelemetryData() end
 
 -- Get timestamp of last telem update
 ---@return uint32_t_ud -- milliseconds since boot
-function AP_Servo_Telem_Data_ud:last_update_ms() end
+function ServoTelemetryData_ud:last_update_ms() end
 
 -- Get type spesfic status flags
 ---@return integer|nil -- flags or nil if not available
-function AP_Servo_Telem_Data_ud:status_flags() end
+function ServoTelemetryData_ud:status_flags() end
+
+-- Set type spesfic status flags
+---@param value integer
+function ServoTelemetryData_ud:status_flags(value) end
 
 -- Get pcb temperature in centidegrees
 ---@return integer|nil -- temperature in centidegrees or nil if not available
-function AP_Servo_Telem_Data_ud:pcb_temperature_cdeg() end
+function ServoTelemetryData_ud:pcb_temperature_cdeg() end
+
+-- Set pcb temperature in centidegrees
+---@param value integer -- temperature in centidegrees
+function ServoTelemetryData_ud:pcb_temperature_cdeg(value) end
 
 -- Get motor temperature in centidegrees
 ---@return integer|nil -- temperature in centidegrees or nil if not available
-function AP_Servo_Telem_Data_ud:motor_temperature_cdeg() end
+function ServoTelemetryData_ud:motor_temperature_cdeg() end
+
+-- Set motor temperature in centidegrees
+---@param value integer -- temperature in centidegrees
+function ServoTelemetryData_ud:motor_temperature_cdeg(value) end
 
 -- Get duty cycle
 ---@return integer|nil -- duty cycle 0% to 100% or nil if not available
-function AP_Servo_Telem_Data_ud:duty_cycle() end
+function ServoTelemetryData_ud:duty_cycle() end
+
+-- Set duty cycle
+---@param value integer -- duty cycle 0% to 100%
+function ServoTelemetryData_ud:duty_cycle(value) end
 
 -- get current
 ---@return number|nil -- current in amps or nil if not available
-function AP_Servo_Telem_Data_ud:current() end
+function ServoTelemetryData_ud:current() end
+
+-- Set current
+---@param value number -- current in amps
+function ServoTelemetryData_ud:current(value) end
 
 -- get voltage
 ---@return number|nil -- voltage in volts or nil if not available
-function AP_Servo_Telem_Data_ud:voltage() end
+function ServoTelemetryData_ud:voltage() end
+
+-- Set voltage
+---@param value number -- voltage in volts
+function ServoTelemetryData_ud:voltage(value) end
 
 -- get speed
 ---@return number|nil -- speed in degrees per second or nil if not available
-function AP_Servo_Telem_Data_ud:speed() end
+function ServoTelemetryData_ud:speed() end
+
+-- Set speed
+---@param value number -- speed in degrees per second
+function ServoTelemetryData_ud:speed(value) end
 
 -- get force
 ---@return number|nil -- force in newton meters or nil if not available
-function AP_Servo_Telem_Data_ud:force() end
+function ServoTelemetryData_ud:force() end
+
+-- Set force
+---@param value number -- force in newton meters
+function ServoTelemetryData_ud:force(value) end
 
 -- get measured position
 ---@return number|nil -- measured position in degrees or nil if not available
-function AP_Servo_Telem_Data_ud:measured_position() end
+function ServoTelemetryData_ud:measured_position() end
+
+-- Set measured position
+---@param value number -- measured position in degrees
+function ServoTelemetryData_ud:measured_position(value) end
 
 -- get commanded position
 ---@return number|nil -- comanded position in degrees or nil if not available
-function AP_Servo_Telem_Data_ud:command_position() end
+function ServoTelemetryData_ud:command_position() end
+
+-- Set commanded position
+---@param value number -- comanded position in degrees
+function ServoTelemetryData_ud:command_position(value) end
 
 -- simulator specific bindings
 sim = {}
@@ -4405,4 +4557,34 @@ function DroneCAN_Handle_ud:request(target_node, payload) end
 ---@param payload string -- payload for message
 ---@return boolean -- true if send succeeded
 function DroneCAN_Handle_ud:broadcast(payload) end
+
+-- OSD scripting backend access
+osd = {}
+
+-- write a string to the OSD at the given column and row
+---@param col integer -- column (0-29 typically)
+---@param row integer -- row (0-15 typically)
+---@param text string -- text to display
+function osd:write(col, row, text) end
+
+-- flush the OSD buffer to the display
+function osd:flush() end
+
+-- clear the OSD buffer
+function osd:clear() end
+
+-- clear the buffer and draw the normal OSD screen into it; flush() shows it with anything written after it
+function osd:draw_screen() end
+
+-- get the aspect ratio correction factor
+---@return number
+function osd:get_aspect_ratio_correction() end
+
+-- get the current screen number
+---@return integer
+function osd:get_screen() end
+
+-- check if display is disabled
+---@return boolean
+function osd:display_disabled() end
 

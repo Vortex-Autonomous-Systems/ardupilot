@@ -21,6 +21,8 @@
 #include <AP_HAL/utility/Socket.h>
 #include "SIM_Aircraft.h"
 
+#define SITL_JSON_DEBUG 0
+
 namespace SITL {
 
 class JSON : public Aircraft {
@@ -69,6 +71,8 @@ private:
 
     uint32_t frame_counter;
     double last_timestamp_s;
+    double base_timestamp_s;
+    uint64_t base_time_us;
 
     void output_servos(const struct sitl_input &input);
     void recv_fdm(const struct sitl_input &input);
@@ -203,7 +207,9 @@ private:
     };
     uint64_t last_received_bitmask;
 
+#if SITL_JSON_DEBUG
     uint32_t last_debug_ms;
+#endif
 
     bool last_no_lockstep;
 };

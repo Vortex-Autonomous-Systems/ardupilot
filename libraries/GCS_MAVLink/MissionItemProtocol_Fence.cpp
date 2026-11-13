@@ -52,6 +52,10 @@ bool MissionItemProtocol_Fence::get_item_as_mission_item(uint16_t seq,
         ret_cmd = MAV_CMD_NAV_FENCE_CIRCLE_INCLUSION;
         p1 = fenceitem.radius;
         break;
+    case AC_PolyFenceType::HOME_CIRCLE_INCLUSION:
+        ret_cmd = MAV_CMD_NAV_FENCE_HOME_CIRCLE_INCLUSION;
+        p1 = fenceitem.radius;
+        break;
 #if AC_POLYFENCE_CIRCLE_INT_SUPPORT_ENABLED
     case AC_PolyFenceType::CIRCLE_EXCLUSION_INT:
     case AC_PolyFenceType::CIRCLE_INCLUSION_INT:
@@ -99,12 +103,15 @@ uint16_t MissionItemProtocol_Fence::item_count() const
 
 MAV_MISSION_RESULT MissionItemProtocol_Fence::convert_MISSION_ITEM_INT_to_AC_PolyFenceItem(const mavlink_mission_item_int_t &mission_item_int, AC_PolyFenceItem &ret)
 {
-    if (mission_item_int.frame != MAV_FRAME_GLOBAL &&
-        mission_item_int.frame != MAV_FRAME_GLOBAL_INT &&
-        mission_item_int.frame != MAV_FRAME_GLOBAL_RELATIVE_ALT &&
-        mission_item_int.frame != MAV_FRAME_GLOBAL_RELATIVE_ALT_INT &&
-        mission_item_int.frame != MAV_FRAME_GLOBAL_TERRAIN_ALT &&
-        mission_item_int.frame != MAV_FRAME_GLOBAL_TERRAIN_ALT_INT) {
+    switch (mission_item_int.frame) {
+    case MAV_FRAME_GLOBAL:
+    case MAV_FRAME_GLOBAL_RELATIVE_ALT:
+    case MAV_FRAME_GLOBAL_TERRAIN_ALT:
+    case MAV_FRAME_GLOBAL_INT:
+    case MAV_FRAME_GLOBAL_RELATIVE_ALT_INT:
+    case MAV_FRAME_GLOBAL_TERRAIN_ALT_INT:
+        break;
+    default:
         return MAV_MISSION_UNSUPPORTED_FRAME;
     }
 
@@ -132,6 +139,10 @@ MAV_MISSION_RESULT MissionItemProtocol_Fence::convert_MISSION_ITEM_INT_to_AC_Pol
         break;
     case MAV_CMD_NAV_FENCE_CIRCLE_INCLUSION:
         ret.type = AC_PolyFenceType::CIRCLE_INCLUSION;
+        ret.radius = mission_item_int.param1;
+        break;
+    case MAV_CMD_NAV_FENCE_HOME_CIRCLE_INCLUSION:
+        ret.type = AC_PolyFenceType::HOME_CIRCLE_INCLUSION;
         ret.radius = mission_item_int.param1;
         break;
     default:

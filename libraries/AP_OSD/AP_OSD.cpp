@@ -309,7 +309,8 @@ void AP_OSD::init()
         osd_types(osd_type2.get())
     };
     for (uint8_t instance = 0; instance < OSD_MAX_INSTANCES; instance++) {
-        if (init_backend(types[instance], instance)) {
+        // pack the backends that start, so none sits beyond _backend_count
+        if (init_backend(types[instance], _backend_count)) {
             _backend_count++;
         }
     }
@@ -320,6 +321,11 @@ void AP_OSD::init()
 
 bool AP_OSD::init_backend(const AP_OSD::osd_types type, const uint8_t instance)
 {
+    // don't re-initialize if backend already exists
+    if (_backends[instance] != nullptr) {
+        return false;
+    }
+
     // check if we can run this backend instance in parallel with backend instance 0
     if (instance > 0) {
         if (_backends[0] && !_backends[0]->is_compatible_with_backend_type(type)) {
@@ -403,11 +409,31 @@ void AP_OSD::osd_thread()
             update_stats();
             update_current_screen();
         }
+#if AP_EXTERNAL_BINDING_ENABLED
+        // hold the semaphore so scripting cannot draw to the OSD while the
+        // OSD thread is updating it, and vice versa
+        WITH_SEMAPHORE(_sem);
+        if (!scripting_override) {
+            update_osd();
+        } else {
+            override_count++;
+            if (override_count > 20) {
+                // timeout after 2 seconds and return to normal OSD
+                scripting_override = false;
+                override_count = 0;
+            }
+        }
+#else
         update_osd();
+#endif // AP_EXTERNAL_BINDING_ENABLED
+        // only this thread can read a backend's uart; _sem keeps a reply out of a script's OSD call
+        for (uint8_t instance = 0; instance < _backend_count; instance++) {
+            _backends[instance]->osd_thread_update();
+        }
     }
 }
 
-void AP_OSD::update_osd()
+void AP_OSD::update_osd(bool flush_scripting_backend)
 {
     for (uint8_t instance = 0; instance < _backend_count; instance++) {
         _backends[instance]->clear();
@@ -420,7 +446,9 @@ void AP_OSD::update_osd()
             }
         }
 
-        _backends[instance]->flush();
+        if (flush_scripting_backend || instance != 0) {
+            _backends[instance]->flush();
+        }
     }
 }
 
@@ -546,7 +574,7 @@ void AP_OSD::update_current_screen()
     }
 
 #if AP_RC_CHANNEL_ENABLED
-    RC_Channel *channel = RC_Channels::rc_channel(rc_channel-1);
+    RC_Channel *channel = rc().channel(rc_channel-1);
     if (channel == nullptr) {
         return;
     }
@@ -633,7 +661,8 @@ bool AP_OSD::pre_arm_check(char *failure_msg, const uint8_t failure_msg_len) con
 #endif  
 
     //check if second backend was requested by user but not instantiated
-    if (osd_type.get() != OSD_NONE && _backend_count == 1 && osd_type2.get() != OSD_NONE) {
+    if (osd_type.get() != OSD_NONE && _backend_count == 1 && osd_type2.get() != OSD_NONE &&
+        _backends[0]->get_backend_type() == osd_types(osd_type.get())) {
         hal.util->snprintf(failure_msg, failure_msg_len, "OSD_TYPE2 not compatible with first OSD");
         return false; 
     }

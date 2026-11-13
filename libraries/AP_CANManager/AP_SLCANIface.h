@@ -71,12 +71,12 @@ class CANIface: public AP_HAL::CANIface
 
     ObjectBuffer<AP_HAL::CANIface::CanRxItem> rx_queue_; // Parsed Rx Frame queue
 
-    const uint32_t _serial_lock_key = 0x53494442; // Key used to lock UART port for use by slcan
+    static constexpr uint32_t _serial_lock_key = 0x53494442; // Key used to lock UART port for use by slcan
 
     AP_Int8 _slcan_can_port;
     AP_Int8 _slcan_ser_port;
-    AP_Int8 _slcan_timeout;
-    AP_Int8 _slcan_start_delay;
+    AP_UInt8 _slcan_timeout;
+    AP_UInt8 _slcan_start_delay;
 
     bool _slcan_start_req;
     uint32_t _slcan_start_req_time;

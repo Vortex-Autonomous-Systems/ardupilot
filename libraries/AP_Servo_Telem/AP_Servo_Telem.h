@@ -9,9 +9,11 @@
 
 
 #ifndef SERVO_TELEM_MAX_SERVOS
+    // On a vehicle board we only expect responses from those servos we directly control
     #define SERVO_TELEM_MAX_SERVOS NUM_SERVO_CHANNELS
 #endif
 static_assert(SERVO_TELEM_MAX_SERVOS > 0, "Cannot have 0 Servo telem instances");
+static_assert(SERVO_TELEM_MAX_SERVOS <= 32, "active_mask has one bit per servo");
 
 class AP_Servo_Telem {
 public:
@@ -66,6 +68,9 @@ public:
 
     // Fill in telem structure if telem is available, return false if not
     bool get_telem(const uint8_t servo_index, TelemetryData& telem) const volatile;
+
+    // return true if a servo with specific node id is currently sending servo telemetry data
+    bool is_active(const uint8_t servo_index) const volatile;
 
 private:
 

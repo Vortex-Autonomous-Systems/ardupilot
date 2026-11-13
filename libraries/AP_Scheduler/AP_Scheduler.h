@@ -210,7 +210,7 @@ private:
     uint16_t _active_loop_rate_hz;
 
     // scheduler options
-    AP_Int8 _options;
+    AP_UInt8 _options;
     
     // calculated loop period in usec
     uint16_t _loop_period_us;
@@ -263,7 +263,7 @@ private:
 
     // maximum task slowdown compared to desired task rate before we
     // start giving extra time per loop
-    const uint8_t max_task_slowdown = 4;
+    static constexpr uint8_t max_task_slowdown = 4;
 
     // counters to handle dynamically adjusting extra loop time to
     // cope with low CPU conditions

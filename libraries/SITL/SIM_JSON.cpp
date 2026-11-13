@@ -34,8 +34,6 @@
 
 #define UDP_TIMEOUT_MS 100
 
-#define SITL_JSON_DEBUG 0
-
 extern const AP_HAL::HAL& hal;
 
 using namespace SITL;
@@ -464,11 +462,11 @@ void JSON::recv_fdm(const struct sitl_input &input)
     update_position();
 
     // update range finder distances
-    for (uint8_t i=7; i<13; i++) {
-        if ((received_bitmask &  1ULL << i) == 0) {
+    for (uint8_t i=0; i<6; i++) {
+        if ((received_bitmask & (RNG_1 << i)) == 0) {
             continue;
         }
-        rangefinder_m[i-7] = state.rng[i-7];
+        rangefinder_m[i] = state.rng[i];
     }
 
     // update wind vane
@@ -492,11 +490,17 @@ void JSON::recv_fdm(const struct sitl_input &input)
 
     // update battery state
     if ((received_bitmask & BAT_VOLT) != 0) {
-        battery_voltage = state.bat_volt; 
+        battery_voltage = state.bat_volt;
+    } else {
+        battery_voltage = sitl->batt_voltage;
     }
     if ((received_bitmask & BAT_AMP) != 0) {
-        battery_current = state.bat_amp; 
+        battery_current = state.bat_amp;
+    } else {
+        battery_current = 0.0f;
     }
+    // (temperature is not part of the protocol, just set it explicitly here)
+    battery_temperature_degC = 0.0f;
 
     double deltat;
     if (state.timestamp_s < last_timestamp_s) {
@@ -507,7 +511,25 @@ void JSON::recv_fdm(const struct sitl_input &input)
     } else {
         deltat = state.timestamp_s - last_timestamp_s;
     }
-    time_now_us += deltat * 1.0e6;
+    uint64_t new_time_us = time_now_us;
+    const bool physics_continues = frame_counter != 0 && state.timestamp_s >= base_timestamp_s;
+    if (physics_continues) {
+        new_time_us = base_time_us +
+                      uint64_t(llround((state.timestamp_s - base_timestamp_s) * 1.0e6));
+    }
+    if (new_time_us <= time_now_us) {
+        // first frame, physics reset, or SITL ran ahead without physics
+        // (no_lockstep): re-base so SITL time never goes backwards.  When
+        // the physics carried on, advance by its step, otherwise
+        // time_advance() adds a SIM_RATE_HZ frame and SITL runs ahead again
+        new_time_us = time_now_us;
+        if (physics_continues) {
+            new_time_us += uint64_t(llround(deltat * 1.0e6));
+        }
+        base_time_us = new_time_us;
+        base_timestamp_s = state.timestamp_s;
+    }
+    time_now_us = new_time_us;
 
     if (is_positive(deltat) && deltat < 0.1) {
         // Only adjust frame time if we want lockstep

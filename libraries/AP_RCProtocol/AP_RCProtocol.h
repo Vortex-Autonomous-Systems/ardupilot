@@ -269,6 +269,18 @@ public:
     void handle_radio_rc_channels(const mavlink_radio_rc_channels_t* packet);
 #endif
 
+    // some backends have a struct LinkStatus and a field _link_status, avoid name clash
+    struct RcLinkStatus {
+        int16_t link_quality = -1;
+        int16_t tx_power = -1;
+        int8_t rssi_dbm = -1;
+        int8_t snr = INT8_MIN;
+        int8_t active_antenna = -1;
+    };
+    volatile struct RcLinkStatus _rc_link_status;
+
+    const volatile RcLinkStatus& get_link_status() const { return _rc_link_status; }
+
 private:
     void check_added_uart(void);
 
@@ -281,7 +293,8 @@ private:
     bool detect_async_protocol(rcprotocol_t protocol);
 
     enum rcprotocol_t _detected_protocol = NONE;
-    uint16_t _disabled_for_pulses;
+    uint32_t _disabled_for_pulses;
+    static_assert(NONE <= 32, "_disabled_for_pulses needs more bits");
     bool _detected_with_bytes;
     AP_RCProtocol_Backend *backend[NONE];
     bool _new_input;
@@ -295,6 +308,9 @@ private:
         bool opened;
         uint32_t last_config_change_ms;
         uint8_t config_num;
+#if AP_RCPROTOCOL_CRSF_ENABLED && (defined(STM32F4) || defined(STM32F7))
+        uint32_t crsf_dma_warning_ms;
+#endif
     } added;
 
     // allowed RC protocols mask (first bit means "all")
@@ -304,7 +320,7 @@ private:
     bool _last_detected_using_uart;
     void announce_detected();
 
-#endif  // AP_RCPROTCOL_ENABLED
+#endif  // AP_RCPROTOCOL_ENABLED
 
 };
 
@@ -314,4 +330,4 @@ namespace AP {
 };
 
 #include "AP_RCProtocol_Backend.h"
-#endif  // AP_RCProtocol_enabled
+#endif  // AP_RCPROTOCOL_ENABLED

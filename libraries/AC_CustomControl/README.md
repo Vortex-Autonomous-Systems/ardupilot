@@ -7,10 +7,10 @@ Custom controller library allows you to implement and easily run your own contro
 - In-flight switching between main and custom controller with RC switch, option 109.
 - Bitmask to choose which axis to use the custom controller output
 - Filter, integrator reset mechanism when switching between controller
-  - Bumpless transfer when switching from custom to the main controller
+  - Bumpless transfer when switching from custom to the main controller
 - Ground and in-flight spool state separation to avoid build-up during arming and take-off with the custom controller
 - Frontend-backend separation that allows adding a new controller with very little overhead
-- Flag to compile out custom controller related code on hardware, --enable-custom-controller
+- Flag to compile out custom controller related code on hardware, --enable-COPTER_CUSTOM_CONTROL
 - Proper parameter table implementation that allows adding new custom controller parameter table without corruption
 - Single parameter to switch between different custom controllers, reboot required
 - Multiple checks to avoid accidentally running mis-un/configured custom controller with RC switch
@@ -19,9 +19,9 @@ Custom controller library allows you to implement and easily run your own contro
 The frontend library has the following parameters
 
 - `CC_TYPE`: choose which custom controller backend to use, reboot required.
-  - Setting it to 0 will turn this feature off, GCS will not display parameters related to the custom controller
+  - Setting it to 0 will turn this feature off, GCS will not display parameters related to the custom controller
 - `CC_AXIS_MASK`: choose which axis to use custom controller output
-  - This is a bitmask type parameter. Set 7 to use all output
+  - This is a bitmask type parameter. Set 7 to use all output
 
 ## Interaction With Main Controller
 
@@ -69,7 +69,7 @@ The custom controller is enabled by default in SITL. You can test it using PID b
 
 1. Compile and run the default SITL model. In the GCS, choose the custom controller type, assign axis mask and set which RC switch to activate the custom controller. Reboot autopilot. For example in mavproxy,
 
-```
+```text
 param set CC_TYPE 2
 param set CC_AXIS_MASK 7
 param set RC6_OPTION 109
@@ -78,13 +78,13 @@ reboot
 
 2. Run the following command to display backend parameters. These would be under `CC2_` for PID backend.
 
-```
+```text
 param set CC2*
 ```
 
 3. Arm and take-off. While at the hover flight, switch RC6 to high. In mavproxy, you can do this with
 
-```
+```text
 rc 6 2000
 ```
 
@@ -96,10 +96,16 @@ rc 6 2000
 
 It is recommended that you always arm, take-off, land, and disarm while the main controller is running. You should switch to the custom controller while the vehicle is hovering steadily. This will reduce the effect of improper filter resetting. You should arm and take off with the custom controller only if proper ground idling is implemented.
 
-To test it on hardware compile with "--enable-custom-controller" flag.
+To test it on hardware compile with "--enable-COPTER_CUSTOM_CONTROL" flag.
 
 ```C++
-./waf configure --board CubeOrange copter --enable-custom-controller
+./waf configure --board CubeOrange copter --enable-COPTER_CUSTOM_CONTROL
+```
+
+You can also enable the feature in a custom hwdef board definition by setting
+
+```text
+define AP_COPTER_CUSTOMCONTROL_ENABLED 1
 ```
 
 ### Post Flight Logs
@@ -112,7 +118,7 @@ You can add your own custom controller backend with the following steps. Let's a
 
 1. Generate a copy of `AC_CustomControl_Empty.cpp` and `AC_CustomControl_Empty.h` within `AC_CustomControl` folder. The folder tree would look like this,
 
-```
+```text
 AC_CustomControl.cpp
 AC_CustomControl.h
 AC_CustomControl_Backend.h
@@ -129,7 +135,7 @@ PID and README files are omitted to keep it simple.
 
 2. Change `Empty - Copy` suffix with your own choice, let's called it `XYZ`, which would look like
 
-```
+```text
 AC_CustomControl.cpp
 AC_CustomControl.h
 AC_CustomControl_Backend.h
@@ -240,9 +246,9 @@ default:
 
 Add the following lines in the `AC_CustomControl_config.h` file.
 
-```
-#ifndef AP_CUSTOMCONTROL_XYZ_ENABLED
-#define AP_CUSTOMCONTROL_XYZ_ENABLED AP_CUSTOMCONTROL_BACKEND_DEFAULT_ENABLED
+```cpp
+#ifndef AP_COPTER_CUSTOMCONTROL_XYZ_ENABLED
+#define AP_COPTER_CUSTOMCONTROL_XYZ_ENABLED AP_COPTER_CUSTOMCONTROL_BACKEND_DEFAULT_ENABLED
 #endif
 ```
 

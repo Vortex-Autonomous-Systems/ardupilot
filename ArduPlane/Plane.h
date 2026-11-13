@@ -35,7 +35,6 @@
 #include <AP_Param/AP_Param.h>
 #include <StorageManager/StorageManager.h>
 #include <AP_Math/AP_Math.h>        // ArduPilot Mega Vector/Matrix math Library
-#include <AP_InertialSensor/AP_InertialSensor.h> // Inertial Sensor Library
 #include <AP_AccelCal/AP_AccelCal.h>                // interface and maths for accelerometer calibration
 #include <AP_AHRS/AP_AHRS.h>         // ArduPilot Mega DCM Library
 #include <SRV_Channel/SRV_Channel.h>
@@ -112,9 +111,14 @@
 #include "defines.h"
 #include "mode.h"
 
-#if AP_SCRIPTING_ENABLED
+#if AP_SCRIPTING_LUA_ENABLED
 #include <AP_Scripting/AP_Scripting.h>
 #endif
+
+#include <AP_CustomControl/AP_CustomControl_config.h>
+#if AP_PLANE_CUSTOMCONTROL_ENABLED
+#include <AP_CustomControl/AP_CustomControl.h>                  // Custom control library
+#endif // AP_PLANE_CUSTOMCONTROL_ENABLED
 
 #include "RC_Channel_Plane.h"     // RC Channel Library
 #include "Parameters.h"
@@ -213,10 +217,6 @@ private:
     int32_t roll_limit_cd;
     float pitch_limit_min;
 
-    // flight modes convenience array
-    AP_Int8 *flight_modes = &g.flight_mode1;
-    const uint8_t num_flight_modes = 6;
-
 #if AP_RANGEFINDER_ENABLED
     AP_FixedWing::Rangefinder_State rangefinder_state;
 
@@ -250,6 +250,10 @@ private:
     AP_PitchController pitchController{aparm};
     AP_YawController yawController{aparm};
     AP_SteerController steerController{};
+
+#if AP_PLANE_CUSTOMCONTROL_ENABLED
+    AP_CustomControl custom_control{aparm};
+#endif // AP_PLANE_CUSTOMCONTROL_ENABLED
 
     // Training mode
     bool training_manual_roll;  // user has manual roll control
@@ -559,7 +563,7 @@ private:
         bool rotation_complete;
     } auto_state;
 
-#if AP_SCRIPTING_ENABLED
+#if AP_EXTERNAL_BINDING_ENABLED
     // support for scripting nav commands, with verify
     struct {
         bool enabled;
@@ -914,6 +918,7 @@ private:
     int32_t adjusted_altitude_cm(void);
     int32_t adjusted_relative_altitude_cm(void);
     float mission_alt_offset(void);
+    void reset_alt_offset(bool force = false);
     float height_above_target(void);
     float lookahead_adjustment(void);
     void fix_terrain_WP(Location &loc, uint32_t linenum);
@@ -939,10 +944,17 @@ private:
     int16_t calc_nav_yaw_course(void);
     int16_t calc_nav_yaw_ground(void);
 
+    // Check if there has been a change in attitude estimate which the attitude controllers should be told about
+    void check_ahrs_reset();
+    struct {
+        uint16_t ahrs_yaw_reset_count;
+        uint16_t attitude_reset_count;
+    } ahrs_check;
+
 #if HAL_LOGGING_ENABLED
 
     // methods for AP_Vehicle:
-    const AP_Int32 &get_log_bitmask() override { return g.log_bitmask; }
+    const AP_UInt32 &get_log_bitmask() override { return g.log_bitmask; }
     const struct LogStructure *get_log_structures() const override {
         return log_structure;
     }
@@ -955,6 +967,9 @@ private:
     void Log_Write_OFG_Guided();
     void Log_Write_Guided(void);
     void Log_Write_Nav_Tuning();
+#if AP_RANGEFINDER_ENABLED
+    void Log_Write_RFNS();
+#endif
     void Log_Write_Status();
     void Log_Write_RC(void);
     void Log_Write_Vehicle_Startup_Messages();
@@ -1022,7 +1037,7 @@ private:
     */
     bool in_auto_mission_id(uint16_t command) const;
 
-#if AP_SCRIPTING_ENABLED
+#if AP_EXTERNAL_BINDING_ENABLED
     // nav scripting support
     void do_nav_script_time(const AP_Mission::Mission_Command& cmd);
     bool verify_nav_script_time(const AP_Mission::Mission_Command& cmd);
@@ -1038,7 +1053,7 @@ private:
     void update_current_loc(void);
 
     // set home location and store it persistently:
-    bool set_home_persistently(const Location &loc) WARN_IF_UNUSED;
+    bool set_home_persistently(const Location &loc, bool lock=false) WARN_IF_UNUSED;
     bool set_home_to_current_location(bool lock) override WARN_IF_UNUSED;
     bool set_home(const Location& loc, bool lock) override WARN_IF_UNUSED;
 
@@ -1075,7 +1090,7 @@ private:
     // Plane.cpp
     void disarm_if_autoland_complete();
     bool trigger_land_abort(const float climb_to_alt_m);
-    void get_osd_roll_pitch_rad(float &roll, float &pitch) const override;
+    void get_osd_attitude_rad(float &roll, float &pitch, float &yaw) override;
     float tecs_hgt_afe(void);
     void get_scheduler_tasks(const AP_Scheduler::Task *&tasks,
                              uint8_t &task_count,
@@ -1135,9 +1150,9 @@ private:
 
     // system.cpp
     __INITFUNC__ void init_ardupilot() override;
-    bool set_mode(Mode& new_mode, const ModeReason reason);
-    bool set_mode(const uint8_t mode, const ModeReason reason) override;
-    bool set_mode_by_number(const Mode::Number new_mode_number, const ModeReason reason);
+    bool set_mode(Mode& new_mode, const ModeReason reason) WARN_IF_UNUSED;
+    bool set_mode(const uint8_t mode, const ModeReason reason) override WARN_IF_UNUSED;
+    bool set_mode_by_number(const Mode::Number new_mode_number, const ModeReason reason) WARN_IF_UNUSED;
     void check_long_failsafe();
     void check_short_rc_failsafe();
     void startup_INS(void);
@@ -1145,6 +1160,9 @@ private:
     int8_t throttle_percentage(void);
     void notify_mode(const Mode& mode);
     bool gcs_mode_enabled(const Mode::Number mode_num) const;
+
+    // Return mask of enabled modes, order does not matter, its just for tracking changes
+    uint32_t get_available_mode_enabled_mask() const override;
 
     // takeoff.cpp
     bool auto_takeoff_check(void);
@@ -1157,6 +1175,10 @@ private:
     bool check_takeoff_timeout(void);
     bool check_takeoff_timeout_level_off(void);
 
+#if AP_PLANE_CUSTOMCONTROL_ENABLED
+    void run_custom_controller();
+#endif // AP_PLANE_CUSTOMCONTROL_ENABLED
+
     // avoidance_adsb.cpp
     void avoidance_adsb_update(void);
 
@@ -1165,6 +1187,7 @@ private:
     float apply_throttle_limits(float throttle_in);
     void set_throttle(void);
     void set_takeoff_expected(void);
+    float get_auto_flap_speed() const;
     void set_servos_flaps(void);
     void dspoiler_update(void);
     void airbrake_update(void);
@@ -1217,7 +1240,7 @@ private:
     float get_adjusted_throttle_input(bool no_deadzone=false) const;
     bool reverse_thrust_enabled(UseReverseThrust use_reverse_thrust_option) const;
 
-#if AP_SCRIPTING_ENABLED
+#if AP_EXTERNAL_BINDING_ENABLED
     // support for NAV_SCRIPT_TIME mission command
     bool nav_scripting_active(void);
     bool nav_script_time(uint16_t &id, uint8_t &cmd, float &arg1, float &arg2, int16_t &arg3, int16_t &arg4) override;
@@ -1307,22 +1330,22 @@ public:
     void failsafe_check(void);
     bool is_landing() const override;
     bool is_taking_off() const override;
-#if AP_SCRIPTING_ENABLED || AP_EXTERNAL_CONTROL_ENABLED
+#if AP_EXTERNAL_BINDING_ENABLED || AP_EXTERNAL_CONTROL_ENABLED
     bool set_target_location(const Location& target_loc) override;
-#endif //AP_SCRIPTING_ENABLED || AP_EXTERNAL_CONTROL_ENABLED
-#if AP_SCRIPTING_ENABLED
+#endif //AP_EXTERNAL_BINDING_ENABLED || AP_EXTERNAL_CONTROL_ENABLED
+#if AP_EXTERNAL_BINDING_ENABLED
     bool get_target_location(Location& target_loc) override;
     bool update_target_location(const Location &old_loc, const Location &new_loc) override;
-    bool set_velocity_match(const Vector2f &velocity) override;
+    bool set_velocity_match(const Vector2f &velocity_ne_ms) override;
 
     // allow for landing descent rate to be overridden by a script, may be -ve to climb
-    bool set_land_descent_rate(float descent_rate) override;
+    bool set_land_descent_rate(float descent_rate_ms) override;
 
     // allow scripts to override mission/guided crosstrack behaviour
     // It's up to the Lua script to ensure the provided location makes sense
     bool set_crosstrack_start(const Location &new_start_location) override;
 
-#endif // AP_SCRIPTING_ENABLED
+#endif // AP_EXTERNAL_BINDING_ENABLED
 
     bool tkoff_option_is_set(AP_FixedWing::TakeoffOption option) const {
         return (aparm.takeoff_options & int32_t(option)) != 0;

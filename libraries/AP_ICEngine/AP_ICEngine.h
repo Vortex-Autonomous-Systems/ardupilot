@@ -29,10 +29,6 @@
 #include <AP_Relay/AP_Relay_config.h>
 #include <RC_Channel/RC_Channel.h>
 
-#if AP_ICENGINE_TCA9554_STARTER_ENABLED
-#include "AP_ICEngine_TCA9554.h"
-#endif
-
 class AP_ICEngine {
 public:
     // constructor
@@ -172,7 +168,7 @@ private:
         NO_RUNNING_WHILE_DISARMED    = (1U << 3),
         CRANK_DIR_REVERSE            = (1U << 4),
     };
-    AP_Int16 options;
+    AP_UInt16 options;
 
     bool option_set(Options option) const {
         return (options & uint16_t(option)) != 0;
@@ -180,10 +176,6 @@ private:
 
     // Last aux function value
     RC_Channel::AuxSwitchPos aux_pos = RC_Channel::AuxSwitchPos::MIDDLE;
-
-#if AP_ICENGINE_TCA9554_STARTER_ENABLED
-    AP_ICEngine_TCA9554 tca9554_starter;
-#endif
 
 #if AP_RPM_ENABLED
     // redline rpm

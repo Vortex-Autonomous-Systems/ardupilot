@@ -107,7 +107,10 @@ void Scrimmage::recv_fdm(const struct sitl_input &input)
         int32_t(pkt.altitude * 1.0e2),
         Location::AltFrame::ABSOLUTE
     };
-    UNUSED_RESULT(home.get_height_above(location, position.z));
+    ftype height_above_home;
+    if (home.get_height_above(location, height_above_home)) {
+        position.z = height_above_home;
+    }
 
     // velocity relative to air mass, in earth frame TODO
     velocity_air_ef = velocity_ef - wind_ef;
@@ -117,6 +120,7 @@ void Scrimmage::recv_fdm(const struct sitl_input &input)
 
     battery_voltage = 0;
     battery_current = 0;
+    battery_temperature_degC = 0;
     rpm[0] = 0;
     rpm[1] = 0;
 

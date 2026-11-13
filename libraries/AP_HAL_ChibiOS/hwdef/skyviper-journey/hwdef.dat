@@ -7,7 +7,7 @@ MCU STM32F4xx STM32F412Rx
 APJ_BOARD_ID TARGET_HW_CUBE_F4
 
 # short board name override (13 chars) to match original max length; can't change because name is used for transmitter bind CRC
-define CHIBIOS_SHORT_BOARD_NAME "skyviper-jour"
+define HAL_SHORT_BOARD_NAME "skyviper-jour"
 
 # crystal frequency
 OSCILLATOR_HZ 24000000
@@ -116,7 +116,6 @@ define HAL_STORAGE_SIZE 15360
 define TOY_MODE_ENABLED 1
 define ARMING_DELAY_SEC 0
 define LAND_DETECTOR_ACCEL_MAX 2.0f
-define ALLOW_ARM_NO_COMPASS
 
 COMPASS BMM150 I2C:0:0x10 false ROTATION_NONE
 

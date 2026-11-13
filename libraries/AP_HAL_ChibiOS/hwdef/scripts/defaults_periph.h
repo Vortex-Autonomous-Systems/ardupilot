@@ -1,6 +1,8 @@
 // this file is inserted (by chibios_hwdef.py) into hwdef.h when
 // configuring for AP_Periph builds
 
+#define AP_REBOOT_MASS_STORAGE_ENABLED 0
+
 #ifndef AP_SCHEDULER_ENABLED
 #define AP_SCHEDULER_ENABLED 0
 #endif
@@ -98,6 +100,10 @@
 
 #ifndef HAL_BARO_WIND_COMP_ENABLED
 #define HAL_BARO_WIND_COMP_ENABLED 0
+#endif
+
+#ifndef AP_BARO_CALIBRATION_ENABLED
+#define AP_BARO_CALIBRATION_ENABLED 0
 #endif
 
 #ifndef HAL_UART_STATS_ENABLED
@@ -412,6 +418,9 @@
 #ifndef HAL_EFI_ENABLED
 #define HAL_EFI_ENABLED AP_PERIPH_EFI_ENABLED
 #endif
+#ifndef AP_AIRSPEED_ENABLED
+#define AP_AIRSPEED_ENABLED AP_PERIPH_AIRSPEED_ENABLED
+#endif
 
 /*
  * GPS Backends - we selectively turn backends on.
@@ -522,6 +531,10 @@
 #define AP_BATTERY_SUM_ENABLED 0  // needs three backends
 #endif  // AP_BATTERY_SUM_ENABLED
 
+#ifndef AP_BATTERY_OPTIONS_PARAM_ENABLED
+#define AP_BATTERY_OPTIONS_PARAM_ENABLED AP_BATTERY_SUM_ENABLED
+#endif  // AP_BATTERY_OPTIONS_PARAM_ENABLED
+
 // Capacity tracking off
 #ifndef AP_BATT_MONITOR_BATTERY_CAPACITY
 #define AP_BATT_MONITOR_BATTERY_CAPACITY 0
@@ -581,8 +594,12 @@
 #define HAL_PROXIMITY_ENABLED 0
 #endif
 
-#ifndef AP_SCRIPTING_ENABLED
-#define AP_SCRIPTING_ENABLED 0
+#ifndef AP_SCRIPTING_LUA_ENABLED
+#define AP_SCRIPTING_LUA_ENABLED 0
+#endif
+
+#ifndef AP_SCRIPTING_HEAP_EXPANSION_ALWAYS_ENABLED
+#define AP_SCRIPTING_HEAP_EXPANSION_ALWAYS_ENABLED 1
 #endif
 
 #ifndef HAL_SERIAL_ESC_COMM_ENABLED
@@ -745,3 +762,15 @@
 #ifndef HAL_USE_LOAD_MEASURE
 #define HAL_USE_LOAD_MEASURE 0
 #endif
+
+#ifndef AP_SERVO_TELEM_ENABLED
+#define AP_SERVO_TELEM_ENABLED 0
+#endif
+
+#ifndef SERVO_TELEM_MAX_SERVOS
+// On periph we handle a sub-set of outputs from a vehicle, because we don't know
+// which indexes those will be we have to support more telem channels than outputs
+// This allows output ID 10 to be output on the first servo channel.
+// This should be reported to the vehicle as ID 10 not ID 1.
+#define SERVO_TELEM_MAX_SERVOS 32
+#endif  // SERVO_TELEM_MAX_SERVOS

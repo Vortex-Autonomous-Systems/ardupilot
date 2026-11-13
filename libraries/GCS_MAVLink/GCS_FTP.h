@@ -21,38 +21,44 @@ public:
 
 private:
     enum class FTP_OP : uint8_t {
-        None = 0,
-        TerminateSession = 1,
-        ResetSessions = 2,
-        ListDirectory = 3,
-        OpenFileRO = 4,
-        ReadFile = 5,
-        CreateFile = 6,
-        WriteFile = 7,
-        RemoveFile = 8,
-        CreateDirectory = 9,
-        RemoveDirectory = 10,
-        OpenFileWO = 11,
-        TruncateFile = 12,
-        Rename = 13,
-        CalcFileCRC32 = 14,
-        BurstReadFile = 15,
-        Ack = 128,
-        Nack = 129,
+        None = MAV_FTP_OPCODE_NONE,
+        TerminateSession = MAV_FTP_OPCODE_TERMINATESESSION,
+        ResetSessions = MAV_FTP_OPCODE_RESETSESSION,
+        ListDirectory = MAV_FTP_OPCODE_LISTDIRECTORY,
+        OpenFileRO = MAV_FTP_OPCODE_OPENFILERO,
+        ReadFile = MAV_FTP_OPCODE_READFILE,
+        CreateFile = MAV_FTP_OPCODE_CREATEFILE,
+        WriteFile = MAV_FTP_OPCODE_WRITEFILE,
+        RemoveFile = MAV_FTP_OPCODE_REMOVEFILE,
+        CreateDirectory = MAV_FTP_OPCODE_CREATEDIRECTORY,
+        RemoveDirectory = MAV_FTP_OPCODE_REMOVEDIRECTORY,
+        OpenFileWO = MAV_FTP_OPCODE_OPENFILEWO,
+        TruncateFile = MAV_FTP_OPCODE_TRUNCATEFILE,
+        Rename = MAV_FTP_OPCODE_RENAME,
+        CalcFileCRC32 = MAV_FTP_OPCODE_CALCFILECRC,
+        BurstReadFile = MAV_FTP_OPCODE_BURSTREADFILE,
+        // ListDirectoryWithTime: like ListDirectory, but each entry also
+        // carries its last-modification time. The opcode is upstream, but is
+        // not in the bundled mavlink definitions yet, so its value (16) is
+        // hardcoded here; switch to MAV_FTP_OPCODE_LISTDIRECTORYWITHTIME
+        // when modules/mavlink is next updated.
+        ListDirectoryWithTime = 16,
+        Ack = MAV_FTP_OPCODE_ACK,
+        Nack = MAV_FTP_OPCODE_NAK,
     };
 
     enum class FTP_ERROR : uint8_t {
-        None = 0,
-        Fail = 1,
-        FailErrno = 2,
-        InvalidDataSize = 3,
-        InvalidSession = 4,
-        NoSessionsAvailable = 5,
-        EndOfFile = 6,
-        UnknownCommand = 7,
-        FileExists = 8,
-        FileProtected = 9,
-        FileNotFound = 10,
+        None = MAV_FTP_ERR_NONE,
+        Fail = MAV_FTP_ERR_FAIL,
+        FailErrno = MAV_FTP_ERR_FAILERRNO,
+        InvalidDataSize = MAV_FTP_ERR_INVALIDDATASIZE,
+        InvalidSession = MAV_FTP_ERR_INVALIDSESSION,
+        NoSessionsAvailable = MAV_FTP_ERR_NOSESSIONSAVAILABLE,
+        EndOfFile = MAV_FTP_ERR_EOF,
+        UnknownCommand = MAV_FTP_ERR_UNKNOWNCOMMAND,
+        FileExists = MAV_FTP_ERR_FILEEXISTS,
+        FileProtected = MAV_FTP_ERR_FILEPROTECTED,
+        FileNotFound = MAV_FTP_ERR_FILENOTFOUND,
     };
 
     struct Transaction {
@@ -62,9 +68,10 @@ private:
         FTP_OP opcode;
         FTP_OP req_opcode;
         bool  burst_complete;
+        bool  resendable;   // reply may be resent to answer a rerequest
         uint8_t size;
         uint8_t session;
-        uint8_t sysid;
+        uint32_t sysid;
         uint8_t compid;
         uint8_t data[239];
     };
@@ -86,13 +93,13 @@ private:
         int16_t session_id;
         FTP_FILE_MODE mode; // work around AP_Filesystem not supporting file modes
         mavlink_channel_t chan;
-        uint8_t sysid;
+        uint32_t sysid;
         uint8_t compid;
 
         bool check_name_len(const Transaction &request);
-        int gen_dir_entry(char *dest, size_t space, const char * path, const struct dirent * entry); // FTP helper for emitting a dir response
-        void list_dir(Transaction &request, Transaction &response);
-        void push_reply(Transaction &reply);
+        int gen_dir_entry(char *dest, size_t space, const char * path, const struct dirent * entry, bool with_time); // FTP helper for emitting a dir response
+        void list_dir(Transaction &request, Transaction &response, bool with_time);
+        bool push_reply(Transaction &reply);
         bool handle_request(Transaction &request, Transaction &reply);
 
         int close(void);
@@ -102,6 +109,9 @@ private:
     bool init(void);
 
     static bool send_reply(const Transaction &reply);
+    static bool send_reply_blocking(const Transaction &reply);
+    // channels whose last wait for room on the link timed out
+    static uint16_t stalled_chans;
     static void error(Transaction &response, FTP_ERROR error);
 
     /*

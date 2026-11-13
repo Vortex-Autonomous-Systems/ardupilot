@@ -62,7 +62,6 @@ define AP_AIRSPEED_ENABLED 0
 define HAL_ESP32_BOARD_NAME "esp32s3m5stampfly"
 
 define AP_COMPASS_ENABLE_DEFAULT 0
-define ALLOW_ARM_NO_COMPASS
 
 # no ADC
 
@@ -93,7 +92,7 @@ define HAL_LOGGING_BACKENDS_DEFAULT 2
 define AP_RCPROTOCOL_ENABLED 0
 
 define AP_FILESYSTEM_ESP32_ENABLED 0
-define AP_SCRIPTING_ENABLED 0
+define AP_SCRIPTING_LUA_ENABLED 0
 
 # This is a board that's not really intended for anything other than copter
 AUTOBUILD_TARGETS Copter

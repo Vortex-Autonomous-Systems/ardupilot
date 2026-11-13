@@ -29,6 +29,9 @@ public:
     // constructor, destructor
     AP_SmartRTL(bool example_mode = false);
 
+    // Return true if SmartRTL is enabled
+    bool enabled() const;
+
     // initialise safe rtl including setting up background processes
     void init();
 
@@ -183,7 +186,7 @@ private:
     // parameters
     AP_Float _accuracy;
     AP_Int16 _points_max;
-    AP_Int32 _options;
+    AP_UInt32 _options;
 
     // SmartRTL State Variables
     bool _active;       // true if SmartRTL is usable.  may become unusable if the path becomes too long to keep in memory, and too convoluted to be cleaned up, SmartRTL will be permanently deactivated (for the remainder of the flight)
